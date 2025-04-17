@@ -132,6 +132,7 @@ ronin = "https://api.roninchain.com/rpc"
 rootstock = "https://public-node.rsk.co"
 appchain = "https://appchain.calderachain.xyz/http"
 hemi = "https://rpc.hemi.network/rpc"
+cronos = "https://cronos.drpc.org"
 
 [etherscan]
 # Mainnets
