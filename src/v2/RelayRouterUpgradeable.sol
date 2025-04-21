@@ -25,10 +25,19 @@ contract RelayRouter is
     using SafeTransferLib for address;
 
     // --- Errors --- //
+    /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
+    
+    /// @notice Revert if the target is invalid
     error InvalidTarget(address target);
+
+    /// @notice Revert if the native transfer failed
     error NativeTransferFailed();
+
+    /// @notice Revert if no recipient is set
     error NoRecipientSet();
+
+    /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();
 
     uint256 internal constant RECIPIENT_STORAGE_SLOT =
@@ -37,6 +46,7 @@ contract RelayRouter is
     function initialize() public initializer {
         __Ownable_init();
         __UUPSUpgradeable_init();
+        __Tstorish_init();
     }
 
     /// @dev Required by UUPSUpgradeable to authorize contract upgrades
