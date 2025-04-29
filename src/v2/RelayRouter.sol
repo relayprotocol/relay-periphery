@@ -30,10 +30,20 @@ contract RelayRouter is Multicall3, ReentrancyGuardMsgSender, Tstorish {
     /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();
 
+    /// @notice Revert if a call fails
+    error CallFailed();
+
+    /// @notice Protocol event to be emitted when transferring native tokens
+    event SolverNativeTransfer(address to, uint256 amount);
+
     uint256 RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("RelayRouter.recipient")) - 1;
 
     constructor() Tstorish() {}
+
+    receive() external payable {
+        emit SolverNativeTransfer(address(this), msg.value);
+    }
 
     /// @notice Execute a multicall with the RelayRouter as msg.sender.
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
@@ -63,7 +73,10 @@ contract RelayRouter is Multicall3, ReentrancyGuardMsgSender, Tstorish {
             // If refundTo is address(0), refund to msg.sender
             address refundAddr = refundTo == address(0) ? msg.sender : refundTo;
 
-            refundAddr.safeTransferETH(address(this).balance);
+            uint256 amount = address(this).balance;
+            refundAddr.safeTransferETH(amount);
+
+            emit SolverNativeTransfer(refundAddr, amount);
         }
     }
 
@@ -100,23 +113,80 @@ contract RelayRouter is Multicall3, ReentrancyGuardMsgSender, Tstorish {
         }
     }
 
+    /// @notice Send leftover ERC20 tokens via explicit method calls
+    /// @dev    Should be included in the multicall if the router is expecting to receive tokens
+    ///         Set amount to 0 to transfer the full balance
+    /// @param tokens The addresses of the ERC20 tokens
+    /// @param tos The target addresses for the calls
+    /// @param datas The data for the calls
+    /// @param amounts The amounts to send
+    function cleanupErc20sViaCall(
+        address[] calldata tokens,
+        address[] calldata tos,
+        bytes[] calldata datas,
+        uint256[] calldata amounts
+    ) public virtual {
+        // Revert if array lengths do not match
+        if (
+            tokens.length != amounts.length ||
+            amounts.length != tos.length ||
+            tos.length != datas.length
+        ) {
+            revert ArrayLengthsMismatch();
+        }
+
+        for (uint256 i; i < tokens.length; i++) {
+            address token = tokens[i];
+            address to = tos[i];
+            bytes calldata data = datas[i];
+
+            // Get the amount to transfer
+            uint256 amount = amounts[i] == 0
+                ? IERC20(token).balanceOf(address(this))
+                : amounts[i];
+
+            // First approve the target address for the call
+            IERC20(token).approve(to, amount);
+
+            // Make the call
+            (bool success, ) = to.call(data);
+            if (!success) {
+                revert CallFailed();
+            }
+        }
+    }
+
     /// @notice Send leftover native tokens to the recipient address
     /// @dev Set amount to 0 to transfer the full balance. Set recipient to address(0) to transfer to msg.sender
     /// @param amount The amount of native tokens to transfer
     /// @param recipient The recipient address
-    function cleanupNative(
-        uint256 amount,
-        address recipient
-    ) public virtual {
+    function cleanupNative(uint256 amount, address recipient) public virtual {
         // If recipient is address(0), set to msg.sender
         address recipientAddr = recipient == address(0)
             ? msg.sender
             : recipient;
 
-        if (amount == 0) {
-            recipientAddr.safeTransferETH(address(this).balance);
-        } else {
-            recipientAddr.safeTransferETH(amount);
+        uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
+        recipientAddr.safeTransferETH(amountToTransfer);
+
+        emit SolverNativeTransfer(recipientAddr, amountToTransfer);
+    }
+
+    /// @notice Send leftover native tokens via an explicit method call
+    /// @dev Set amount to 0 to transfer the full balance. Set recipient to address(0) to transfer to msg.sender
+    /// @param amount The amount of native tokens to transfer
+    /// @param to The target address of the call
+    /// @param data The data for the call
+    function cleanupNativeViaCall(
+        uint256 amount,
+        address to,
+        bytes calldata data
+    ) public virtual {
+        (bool success, ) = to.call{
+            value: amount == 0 ? address(this).balance : amount
+        }(data);
+        if (!success) {
+            revert CallFailed();
         }
     }
 

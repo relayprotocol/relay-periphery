@@ -24,7 +24,7 @@ out = "out"
 libs = ["lib"]
 via_ir = true
 
-fs_permissions = [{ access = "read", path = "./"}]
+fs_permissions = [{ access = "read", path = "./" }]
 
 [rpc_endpoints]
 amoy = "https://warmhearted-wiser-spring.matic-amoy.quiknode.pro/7672f450baa71d892346bb2fc6845b0331e5c85d/"
@@ -154,8 +154,8 @@ blast = { key = "${ETHERSCAN_API_KEY_BLAST}" }
 corn = { key = "0x", chain = 21000000, url = "https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan" }
 apechain = { key = "${ETHERSCAN_API_KEY_APECHAIN}", chain = 33139, url = "https://api.apescan.io/api" }
 berachain = { key = "${ETHERSCAN_API_KEY_BERA}", chain = 80094, url = "https://api.berascan.com/api" }
-appchain = { key = "0x", chain = 466, url = "https://appchain.calderaexplorer.xyz/api/"}
-echos = { key = "0x", chain = 4321, url = "https://explorer-echos-mainnet-0.t.conduit.xyz/api/"}
+appchain = { key = "0x", chain = 466, url = "https://appchain.calderaexplorer.xyz/api/" }
+echos = { key = "0x", chain = 4321, url = "https://explorer-echos-mainnet-0.t.conduit.xyz/api/" }
 morph = { key = "0x", chain = 2818, url = "https://explorer-api.morphl2.io/api?" }
 
 # Testnets
