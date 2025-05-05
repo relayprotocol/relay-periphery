@@ -4,7 +4,6 @@ pragma solidity ^0.8.25;
 import {UUPSUpgradeable} from "@openzeppelin-contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Initializable} from "@openzeppelin-contracts-upgradeable/proxy/utils/Initializable.sol";
 import {OwnableUpgradeable} from "@openzeppelin-contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Tstorish} from "tstorish/src/Tstorish.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
@@ -13,21 +12,22 @@ import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {ReentrancyGuardMsgSender} from "../v1/ReentrancyGuardMsgSender.sol";
 import {Multicall3} from "./utils/Multicall3.sol";
 import {Call, Call3, Call3Value, Result, RelayerWitness} from "./utils/RelayStructs.sol";
+import {TstorishInitializable} from "./utils/TstorishInitializable.sol";
 
-contract RelayRouter is
+contract RelayRouterUpgradeable is
     Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
     Multicall3,
     ReentrancyGuardMsgSender,
-    Tstorish
+    TstorishInitializable
 {
     using SafeTransferLib for address;
 
     // --- Errors --- //
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
-    
+
     /// @notice Revert if the target is invalid
     error InvalidTarget(address target);
 
@@ -44,13 +44,15 @@ contract RelayRouter is
         uint256(keccak256("RelayRouter.recipient")) - 1;
 
     function initialize() public initializer {
-        __Ownable_init();
+        __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
         __Tstorish_init();
     }
 
     /// @dev Required by UUPSUpgradeable to authorize contract upgrades
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyOwner {}
 
     /// @notice Execute a multicall with the RelayRouter as msg.sender.
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
@@ -121,10 +123,7 @@ contract RelayRouter is
     /// @dev Set amount to 0 to transfer the full balance. Set recipient to address(0) to transfer to msg.sender
     /// @param amount The amount of native tokens to transfer
     /// @param recipient The recipient address
-    function cleanupNative(
-        uint256 amount,
-        address recipient
-    ) public virtual {
+    function cleanupNative(uint256 amount, address recipient) public virtual {
         address recipientAddr = recipient == address(0)
             ? msg.sender
             : recipient;

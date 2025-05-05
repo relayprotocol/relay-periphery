@@ -27,22 +27,22 @@ contract TstorishInitializable is Initializable {
     uint256 constant _TLOAD_TEST_PAYLOAD_OFFSET = 0x16;
 
     // Declare an immutable variable to store the tstore test contract address.
-    address private immutable _tloadTestContract;
+    address private _tloadTestContract;
 
     // Declare an immutable variable to store the initial TSTORE support status.
-    bool private immutable _tstoreInitialSupport;
+    bool private _tstoreInitialSupport;
 
     // Declare an immutable function type variable for the _setTstorish function
     // based on chain support for tstore at time of deployment.
-    function(uint256,uint256) internal immutable _setTstorish;
+    function(uint256,uint256) internal _setTstorish;
 
     // Declare an immutable function type variable for the _getTstorish function
     // based on chain support for tstore at time of deployment.
-    function(uint256) view returns (uint256) internal immutable _getTstorish;
+    function(uint256) view returns (uint256) internal _getTstorish;
 
     // Declare an immutable function type variable for the _clearTstorish function
     // based on chain support for tstore at time of deployment.
-    function(uint256) internal immutable _clearTstorish;
+    function(uint256) internal _clearTstorish;
 
     // Declare a few custom revert error types.
     error TStoreAlreadyActivated();
@@ -56,7 +56,7 @@ contract TstorishInitializable is Initializable {
      *      contract construction bytecode, and configuring initial support for
      *      using TSTORE in place of SSTORE based on the result.
      */
-    function __Tstorish_init() internal onlyInitializing {
+    function __Tstorish_init() public onlyInitializing {
         // Deploy the contract testing TLOAD support and store the address.
         address tloadTestContract = _prepareTloadTest();
 

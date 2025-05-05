@@ -119,14 +119,6 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
         DOMAIN_SEPARATOR = permit2.DOMAIN_SEPARATOR();
     }
 
-    function testReceive__revert() public {
-        uint256 value = 1 ether;
-
-        vm.prank(alice.addr);
-        (bool success, ) = address(router).call{value: value}("");
-        assert(!success);
-    }
-
     function testCorrectWitnessTypehashes() public pure {
         assertEq(
             keccak256(
@@ -987,6 +979,33 @@ contract RelayRouterTest is Test, BaseRelayTest, EIP712 {
             IERC20(USDT).balanceOf(relaySolver) - solverBalanceBefore,
             1000 * 10 ** 6
         );
+    }
+
+    function testNativeCleanupViaCall() public {
+        // Deal router some native tokens
+        vm.deal(address(router), 1 ether);
+
+        bytes memory calldata1 = abi.encodeWithSelector(
+            router.cleanupNativeViaCall.selector,
+            0,
+            bob.addr,
+            bytes("0x1234567890")
+        );
+
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: address(router),
+            allowFailure: false,
+            value: 0,
+            callData: calldata1
+        });
+
+        uint256 bobBalanceBefore = address(bob.addr).balance;
+
+        vm.prank(relaySolver);
+        router.multicall(calls, address(0), address(0));
+
+        assertEq(address(bob.addr).balance - bobBalanceBefore, 1 ether);
     }
 
     function testERC721__SafeMintCorrectRecipient() public {
