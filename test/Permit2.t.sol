@@ -170,7 +170,8 @@
             );
 
             uint256[] memory values = new uint256[](2);
-
+            
+            vm.expectRevert();
             IERC20Router(router).permitMulticall(
                 attacker,
                 permit,
@@ -182,9 +183,9 @@
             );
 
             vm.stopPrank();
-
-            assertEq(IERC20(usdc).balanceOf(attacker), amount);
+            
             console.log("attacker USDC balance: %s", IERC20(usdc).balanceOf(attacker));
+            assertEq(IERC20(usdc).balanceOf(attacker), 0);
         }
     }
 
