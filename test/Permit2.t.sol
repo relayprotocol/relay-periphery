@@ -128,10 +128,6 @@
             ERC20Router erc20Router = new ERC20Router(permit2);
             vm.etch(router, address(erc20Router).code);
 
-            vm.startPrank(targetUser);
-            IERC20(usdc).approve(permit2, type(uint256).max);
-            vm.stopPrank();
-
             address attacker = makeAddr("attacker");
             vm.deal(attacker, 1 ether);
             vm.startPrank(attacker);
