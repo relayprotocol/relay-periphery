@@ -81,6 +81,13 @@ contract ERC20Router is
             revert ArrayLengthsMismatch();
         }
 
+        // Revert if any of the targets is the PERMIT2 contract
+        for (uint256 i = 0; i < targets.length; i++) {
+            if (targets[i] == address(PERMIT2)) {
+                revert InvalidTarget(address(PERMIT2));
+            }
+        }
+
         // Set the recipient in storage
         _setRecipient(refundTo);
 
@@ -124,6 +131,11 @@ contract ERC20Router is
             // Revert if the call fails
             if (targets[i] == ZORA_REWARDS_V1) {
                 revert InvalidTarget(ZORA_REWARDS_V1);
+            }
+
+            // Revert if any of the targets is the PERMIT2 contract
+            if (targets[i] == address(PERMIT2)) {
+                revert InvalidTarget(address(PERMIT2));
             }
         }
 
