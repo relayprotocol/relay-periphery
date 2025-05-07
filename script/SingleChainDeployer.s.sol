@@ -8,7 +8,7 @@ import {Multicaller} from "../src/v1/Multicaller.sol";
 import {Permit2} from "permit2-relay/src/Permit2.sol";
 import {ApprovalProxy} from "../src/v1/ApprovalProxyV1.sol";
 import {OnlyOwnerMulticaller} from "../src/v1/OnlyOwnerMulticallerV1.sol";
-import {ERC20Router} from "../src/v1/ERC20RouterV1.sol";
+// import {ERC20Router} from "../src/v1/ERC20RouterV1.sol";
 import {ERC20Router__Shanghai} from "../src/v1/ERC20Router__Shanghai.sol";
 import {RelayReceiver} from "../src/v1/RelayReceiverV1.sol";
 import {BaseDeployer} from "./BaseDeployer.s.sol";
@@ -36,7 +36,7 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
         vm.startBroadcast(owner);
         address permit2 = deployPermit2();
         address multicaller = deployMulticaller();
-        address erc20Router = deployERC20Router(
+        address erc20Router = deployERC20Router__Shanghai(
             PERMIT2
         );
         deployApprovalProxy(erc20Router);
@@ -189,59 +189,59 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
     }
 
     /// @notice Deploys the ERC20 Router contract to the given chain
-    function deployERC20Router(
-        address permit2
-    ) public returns (address) {
-        console2.log("Deploying ERC20 Router...");
+    // function deployERC20Router(
+    //     address permit2
+    // ) public returns (address) {
+    //     console2.log("Deploying ERC20 Router...");
 
-        address predictedAddress = address(
-            uint160(
-                uint(
-                    keccak256(
-                        abi.encodePacked(
-                            bytes1(0xff),
-                            FOUNDRY_CREATE2_FACTORY,
-                            ERC20_ROUTER_V1_SALT,
-                            keccak256(
-                                abi.encodePacked(
-                                    type(ERC20Router).creationCode,
-                                    abi.encode(permit2)
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        );
+    //     address predictedAddress = address(
+    //         uint160(
+    //             uint(
+    //                 keccak256(
+    //                     abi.encodePacked(
+    //                         bytes1(0xff),
+    //                         FOUNDRY_CREATE2_FACTORY,
+    //                         ERC20_ROUTER_V1_SALT,
+    //                         keccak256(
+    //                             abi.encodePacked(
+    //                                 type(ERC20Router).creationCode,
+    //                                 abi.encode(permit2)
+    //                             )
+    //                         )
+    //                     )
+    //                 )
+    //             )
+    //         )
+    //     );
 
-        console2.log("router init code hash: ");
-        console2.logBytes32(keccak256(
-                                abi.encodePacked(
-                                    type(ERC20Router).creationCode,
-                                    abi.encode(permit2)
-                )
-            ));
+    //     console2.log("router init code hash: ");
+    //     console2.logBytes32(keccak256(
+    //                             abi.encodePacked(
+    //                                 type(ERC20Router).creationCode,
+    //                                 abi.encode(permit2)
+    //             )
+    //         ));
 
-        if (_hasBeenDeployed(predictedAddress)) {
-            console2.log(
-                "ERC20 Router has already been deployed at: ",
-                predictedAddress
-            );
-            return predictedAddress;
-        }
+    //     if (_hasBeenDeployed(predictedAddress)) {
+    //         console2.log(
+    //             "ERC20 Router has already been deployed at: ",
+    //             predictedAddress
+    //         );
+    //         return predictedAddress;
+    //     }
 
-        ERC20Router router = new ERC20Router{salt: ERC20_ROUTER_V1_SALT}(
-            permit2
-        );
+    //     ERC20Router router = new ERC20Router{salt: ERC20_ROUTER_V1_SALT}(
+    //         permit2
+    //     );
 
-        if (address(router) != predictedAddress) {
-            revert InvalidContractAddress(predictedAddress, address(router));
-        }
+    //     if (address(router) != predictedAddress) {
+    //         revert InvalidContractAddress(predictedAddress, address(router));
+    //     }
 
-        console2.log("ERC20 Router deployed: ", address(router));
+    //     console2.log("ERC20 Router deployed: ", address(router));
 
-        return address(router);
-    }
+    //     return address(router);
+    // }
 
     /// @notice Deploys the ERC20 Router contract to the given chain
     function deployERC20Router__Shanghai(

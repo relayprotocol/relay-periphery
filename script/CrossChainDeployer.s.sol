@@ -11,17 +11,16 @@ import {OnlyOwnerMulticaller} from "../src/v1/OnlyOwnerMulticallerV1.sol";
 import {ERC20Router} from "../src/v1/ERC20RouterV1.sol";
 import {RelayReceiver} from "../src/v1/RelayReceiverV1.sol";
 import {BaseDeployer} from "./BaseDeployer.s.sol";
-
+import {Counter} from "../src/v1/Counter.sol";
 contract CrossChainDeployer is Script, Test, BaseDeployer {
     error InvalidContractAddress(address expected, address actual);
 
-    bytes32 constant salt = bytes32(uint256(3));
+    bytes32 constant salt = bytes32(uint256(4));
 
     // 0xaaaaaaae92Cc1cEeF79a038017889fDd26D23D4d
     bytes32 constant APPROVAL_PROXY_V1_SALT = 0x0000000000000000000000000000000000000000a5b08fa2e0ed3bdbef020080;
 
-    // 0xeeeeee9eC4769A09a76A83C7bC42b185872860eE
-    bytes32 constant ERC20_ROUTER_V1_SALT = 0x00000000000000000000000000000000000000000e00071c143ecf3b430400e0;
+    bytes32 constant ERC20_ROUTER_V1_SALT = bytes32(uint256(1));
 
     function setUp() public {}
 
@@ -33,7 +32,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         /// @dev add new chain(s) below and update array length accordingly
         /// NOTE: contracts have already been deployed to commented out chains. Make sure to also add your chain to the Chain enum and forks mapping in BaseDeployer.s.sol
         Chains[] memory deployForks = new Chains[](1);
-        // deployForks[0] = Chains.Mainnet; // Amoy
+        deployForks[0] = Chains.Base;
         // deployForks[1] = Chains.Base;
         // deployForks[2] = Chains.Arbitrum;
         // deployForks[3] = Chains.Optimism;
@@ -146,23 +145,34 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             createSelectFork(deployForks[i]);
 
             vm.startBroadcast(owner);
-            address permit2 = deployPermit2();
-            address multicaller = deployMulticaller();
-            address erc20Router = deployERC20Router(
-                PERMIT2
-            );
-            deployApprovalProxy(erc20Router);
-            if (vm.envBool("IS_TESTNET") == true) {
-                deployRelayReceiver(TESTNET_SOLVER);
-            } else {
-                deployRelayReceiver(SOLVER);
-            }
-            deployOnlyOwnerMulticaller();
+            address counter = deployCounter();
+            // address permit2 = deployPermit2();
+            // address multicaller = deployMulticaller();
+            // address erc20Router = deployERC20Router(
+            //     PERMIT2
+            // );
+            // deployApprovalProxy(erc20Router);
+            // if (vm.envBool("IS_TESTNET") == true) {
+            //     deployRelayReceiver(TESTNET_SOLVER);
+            // } else {
+            //     deployRelayReceiver(SOLVER);
+            // }
+            // deployOnlyOwnerMulticaller();
 
             vm.stopBroadcast();
 
             console2.log("\n");
         }
+    }
+
+    function deployCounter() public returns (address) {
+        console2.log("Deploying Counter...");
+
+        Counter counter = new Counter{salt: salt}();
+    
+        console2.log("Counter deployed: ", address(counter));
+
+        return address(counter);
     }
 
     /// @notice Deploys the Multicaller contract to the given chain
