@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -8,12 +8,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {MulticallerInternal} from "./MulticallerInternal.sol";
+import {ReentrancyGuard} from "./ReentrancyGuard.sol";
 
 struct RelayerWitness {
     address relayer;
 }
 
-contract ERC20Router__Shanghai is MulticallerInternal {
+contract ERC20Router__Shanghai is MulticallerInternal, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
@@ -27,8 +28,14 @@ contract ERC20Router__Shanghai is MulticallerInternal {
     /// @notice Revert if no recipient is set
     error NoRecipientSet();
 
+    /// @notice Revert if the target is invalid
+    error InvalidTarget(address target);
+
     uint256 RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("ERC20Router.recipient")) - 1;
+
+    address constant ZORA_REWARDS_V1 =
+        0x7777777F279eba3d3Ad8F4E708545291A6fDBA8B;
 
     IPermit2 private immutable PERMIT2;
 
@@ -63,10 +70,17 @@ contract ERC20Router__Shanghai is MulticallerInternal {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable returns (bytes[] memory) {
+    ) external payable nonReentrant returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
+        }
+
+        // Revert if any of the targets is the PERMIT2 contract
+        for (uint256 i = 0; i < targets.length; i++) {
+            if (targets[i] == address(PERMIT2)) {
+                revert InvalidTarget(address(PERMIT2));
+            }
         }
 
         // Set the recipient in storage
@@ -101,10 +115,22 @@ contract ERC20Router__Shanghai is MulticallerInternal {
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable returns (bytes[] memory) {
+    ) external payable nonReentrant returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
+        }
+
+        for (uint256 i = 0; i < targets.length; i++) {
+            // Revert if the call fails
+            if (targets[i] == ZORA_REWARDS_V1) {
+                revert InvalidTarget(ZORA_REWARDS_V1);
+            }
+
+            // Revert if any of the targets is the PERMIT2 contract
+            if (targets[i] == address(PERMIT2)) {
+                revert InvalidTarget(address(PERMIT2));
+            }
         }
 
         // Set the recipient in storage
@@ -123,7 +149,7 @@ contract ERC20Router__Shanghai is MulticallerInternal {
     /// @dev Should be included in the multicall if the router is expecting to receive tokens
     /// @param token The address of the ERC20 token
     /// @param refundTo The address to refund the tokens to
-    function cleanupERC20(address token, address refundTo) external {
+    function cleanupERC20(address token, address refundTo) external nonReentrant {
         // Check the router's balance for the token
         uint256 balance = IERC20(token).balanceOf(address(this));
 
