@@ -9,13 +9,18 @@ import {Permit2} from "permit2-relay/src/Permit2.sol";
 import {ApprovalProxy} from "../src/v1/ApprovalProxyV1.sol";
 import {OnlyOwnerMulticaller} from "../src/v1/OnlyOwnerMulticallerV1.sol";
 import {ERC20Router} from "../src/v1/ERC20RouterV1.sol";
+import {ERC20Router__Shanghai} from "../src/v1/ERC20Router__Shanghai.sol";
 import {RelayReceiver} from "../src/v1/RelayReceiverV1.sol";
 import {BaseDeployer} from "./BaseDeployer.s.sol";
-import {Counter} from "../src/v1/Counter.sol";
+
+interface IApprovalProxy {
+    function setRouter(address router) external;
+}
+
 contract CrossChainDeployer is Script, Test, BaseDeployer {
     error InvalidContractAddress(address expected, address actual);
 
-    bytes32 constant salt = bytes32(uint256(4));
+    bytes32 constant salt = bytes32(uint256(1));
 
     // 0xaaaaaaae92Cc1cEeF79a038017889fDd26D23D4d
     bytes32 constant APPROVAL_PROXY_V1_SALT = 0x0000000000000000000000000000000000000000a5b08fa2e0ed3bdbef020080;
@@ -32,105 +37,76 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         /// @dev add new chain(s) below and update array length accordingly
         /// NOTE: contracts have already been deployed to commented out chains. Make sure to also add your chain to the Chain enum and forks mapping in BaseDeployer.s.sol
         Chains[] memory deployForks = new Chains[](1);
-        deployForks[0] = Chains.Base;
+        // deployForks[0] = Chains.Mainnet;
         // deployForks[1] = Chains.Base;
         // deployForks[2] = Chains.Arbitrum;
         // deployForks[3] = Chains.Optimism;
-        // deployForks[4] = Chains.Null; // DeBank testnet *
-        // deployForks[5] = Chains.Null; // Manta testnet *
-        // deployForks[6] = Chains.Null; // Barret **
-        // deployForks[7] = Chains.Null; // ZkSync Sepolia *
-        // deployForks[8] = Chains.Null; // Align testnet v2 *
-        // deployForks[9] = Chains.Null; // Mode testnet *
-        // deployForks[10] = Chains.Boba;
-        // deployForks[11] = Chains.Null; // Goerli *
-        // deployForks[12] = Chains.Null; // Gin testnet *
-        // deployForks[13] = Chains.Null; // Frame testnet *
-        // deployForks[14] = Chains.Null; // Blast Sepolia *
-        // deployForks[15] = Chains.Null; // Astar Zkyoto *
-        // deployForks[16] = Chains.Null; // Hypr *
-        // deployForks[17] = Chains.Hekla;
-        // deployForks[18] = Chains.OpSepolia;
-        // deployForks[19] = Chains.Null; // Garnet *
-        // deployForks[20] = Chains.Null; // Ancient8 celestia testnet *
-        // deployForks[21] = Chains.Null; // Atlas *
-        // deployForks[22] = Chains.B3;
-        // deployForks[23] = Chains.ZoraSepolia;
-        // deployForks[24] = Chains.FunkiTestnet;
-        // deployForks[25] = Chains.LiskSepolia;
-        // deployForks[26] = Chains.Cloud;
-        // deployForks[27] = Chains.Game7Testnet;
-        // deployForks[28] = Chains.ShapeSepolia;
-        // deployForks[29] = Chains.ArbitrumBlueberry;
-        // deployForks[30] = Chains.Null; // M Integrations Testnet
-        // deployForks[31] = Chains.Sepolia;
-        // deployForks[32] = Chains.Null; // Memecoin 2
-        // deployForks[33] = Chains.BaseSepolia;
-        // deployForks[34] = Chains.Redstone;
-        // deployForks[35] = Chains.Rari;
-        // deployForks[36] = Chains.Null; // ZkSync
-        // deployForks[37] = Chains.Degen;
-        // deployForks[38] = Chains.Null; // Linea
-        // deployForks[39] = Chains.Avalanche;
-        // deployForks[40] = Chains.Zora;
-        // deployForks[41] = Chains.Polygon;
-        // deployForks[42] = Chains.Ancient8;
-        // deployForks[43] = Chains.Xai;
-        // deployForks[44] = Chains.Null; // AstarZkevm *
-        // deployForks[45] = Chains.Mode;
-        // deployForks[46] = Chains.Gnosis;
-        // deployForks[47] = Chains.Blast;
-        // deployForks[48] = Chains.Apex;
-        // deployForks[49] = Chains.Null;
-        // deployForks[50] = Chains.Lisk;
-        // deployForks[51] = Chains.Null;
-        // deployForks[52] = Chains.OnchainPoints;
-        // deployForks[53] = Chains.PolygonZkevm;
-        // deployForks[54] = Chains.ArbitrumNova;
-        // deployForks[55] = Chains.Null;
-        // deployForks[56] = Chains.Null;
-        // deployForks[57] = Chains.Cyber;
-        // deployForks[58] = Chains.ArbitrumSepolia; // Arbitrum Sepolia
-        // deployForks[59] = Chains.Null; // Scroll *
-        // deployForks[60] = Chains.Amoy;
-        // deployForks[61] = Chains.Bsc;
-        // deployForks[62] = Chains.Null;
-        // deployForks[63] = Chains.Mint;
-        // deployForks[64] = Chains.Null;
-        // deployForks[65] = Chains.ApeChain;
-        // deployForks[66] = Chains.UniChain;
-        // deployForks[67] = Chains.Mantle;
-        // deployForks[68] = Chains.BeraChain;
-        // deployForks[69] = Chains.Sonic;
-        // deployForks[70] = Chains.Shape;
-        // deployForks[71] = Chains.Worldchain;
-        // deployForks[72] = Chains.Flow;
-        // deployForks[73] = Chains.Sei;
-        // deployForks[74] = Chains.Perennial;
-        // deployForks[75] = Chains.Story;
-        // deployForks[76] = Chains.Gravity;
-        // deployForks[77] = Chains.Soneium;
-        // deployForks[78] = Chains.Swellchain;
-        // deployForks[79] = Chains.Sanko;
-        // deployForks[80] = Chains.Game7;
-        // deployForks[81] = Chains.Hychain;
-        // deployForks[82] = Chains.Echos;
-        // deployForks[83] = Chains.Powerloom;
-        // deployForks[84] = Chains.ArenaZ;
-        // deployForks[85] = Chains.Superposition;
-        // deployForks[86] = Chains.Ink;
-        // deployForks[87] = Chains.Boss;
-        // deployForks[88] = Chains.Forma;
-        // deployForks[89] = Chains.Bob;
-        // deployForks[90] = Chains.Scroll;
-        // deployForks[91] = Chains.Rootstock;
+        // deployForks[5] = Chains.Boba;
+        // deployForks[6] = Chains.B3;
+        // deployForks[7] = Chains.Redstone;
+        // deployForks[8] = Chains.Rari;
+        // deployForks[9] = Chains.Degen;
+        // deployForks[10] = Chains.Zora;
+        // deployForks[11] = Chains.Polygon;
+        // deployForks[12] = Chains.Ancient8;
+        // deployForks[13] = Chains.Mode;
+        // deployForks[14] = Chains.Gnosis;
+        // deployForks[15] = Chains.Blast;
+        // deployForks[16] = Chains.Lisk;
+        // deployForks[17] = Chains.OnchainPoints;
+        // deployForks[18] = Chains.PolygonZkevm;
+        // deployForks[19] = Chains.ArbitrumNova;
+        // deployForks[20] = Chains.Cyber;
+        // deployForks[21] = Chains.Amoy;
+        // deployForks[22] = Chains.Bsc;
+        // deployForks[23] = Chains.Mint;
+        // deployForks[24] = Chains.UniChain;
+        // deployForks[25] = Chains.BeraChain;
+        // deployForks[26] = Chains.Sonic;
+        // deployForks[27] = Chains.Shape;
+        // deployForks[28] = Chains.Worldchain;
+        // deployForks[29] = Chains.Flow;
+        // deployForks[30] = Chains.Sei;
+        // deployForks[31] = Chains.Perennial;
+        // deployForks[32] = Chains.Story;
+        // deployForks[33] = Chains.Gravity;
+        // deployForks[34] = Chains.Soneium;
+        // deployForks[35] = Chains.Sanko;
+        // deployForks[36] = Chains.Hychain;
+        // deployForks[37] = Chains.Echos;
+        // deployForks[38] = Chains.Powerloom;
+        // deployForks[39] = Chains.ArenaZ;
+        // deployForks[40] = Chains.Superposition;
+        // deployForks[41] = Chains.Ink;
+        // deployForks[42] = Chains.Boss;
+        // deployForks[43] = Chains.Bob;
+        // deployForks[44] = Chains.Scroll;
+        // deployForks[45] = Chains.Appchain;
+        // deployForks[46] = Chains.Null;
+        // deployForks[47] = Chains.Morph;
+        // deployForks[48] = Chains.Odyssey;
+        // deployForks[49] = Chains.Avalanche;
+        // deployForks[50] = Chains.Xai;
+        // deployForks[51] = Chains.Apex;
+        // deployForks[52] = Chains.Swellchain;
+        // deployForks[53] = Chains.Forma;
+        // deployForks[54] = Chains.Rootstock;
+        // deployForks[55] = Chains.Superseed;
+        // deployForks[56] = Chains.Zircuit;
+        // deployForks[57] = Chains.MantaPacific;
+        // deployForks[58] = Chains.AnimeChain;
+        // deployForks[59] = Chains.Ronin;
+        // deployForks[60] = Chains.Corn;
+        // deployForks[61] = Chains.Funki;
+        // deployForks[62] = Chains.ApeChain;
+        // deployForks[63] = Chains.Hemi;
+        // deployForks[64] = Chains.Metis;
+        // deployForks[65] = Chains.Mantle;
+        // deployForks[66] = Chains.Cronos;
+        // deployForks[67] = Chains.Taiko;
+        // deployForks[68] = Chains.Celo;
 
-        // Didn't work:
-        // Funki
-        // Ham
-        // Taiko
-        // Linea
-        // Eclipse
+        
 
         for (uint256 i; i < deployForks.length; ++i) {
             if (deployForks[i] == Chains.Null) {
@@ -144,12 +120,21 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
 
             createSelectFork(deployForks[i]);
 
+            if (owner.balance == 0) {
+                console2.log("Owner has no balance, skipping chain: ", forks[deployForks[i]]);
+                console2.log("\n");
+                continue;
+            }
+
             vm.startBroadcast(owner);
-            address counter = deployCounter();
-            // address permit2 = deployPermit2();
-            // address multicaller = deployMulticaller();
             // address erc20Router = deployERC20Router(
             //     PERMIT2
+            // );
+            address approvalProxy = deployApprovalProxy(0x6f3158867645E302043E1E00ded57e648D5310EC);
+            // address permit2 = deployPermit2();
+            // address multicaller = deployMulticaller();
+            // address erc20RouterShanghai = deployERC20Router__Shanghai(
+            //     permit2
             // );
             // deployApprovalProxy(erc20Router);
             // if (vm.envBool("IS_TESTNET") == true) {
@@ -163,16 +148,6 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
 
             console2.log("\n");
         }
-    }
-
-    function deployCounter() public returns (address) {
-        console2.log("Deploying Counter...");
-
-        Counter counter = new Counter{salt: salt}();
-    
-        console2.log("Counter deployed: ", address(counter));
-
-        return address(counter);
     }
 
     /// @notice Deploys the Multicaller contract to the given chain
@@ -266,7 +241,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
                         abi.encodePacked(
                             bytes1(0xff),
                             FOUNDRY_CREATE2_FACTORY,
-                            APPROVAL_PROXY_V1_SALT,
+                            salt,
                             keccak256(
                                 abi.encodePacked(
                                     type(ApprovalProxy).creationCode,
@@ -279,12 +254,10 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             )
         );
 
-        console2.log("approval proxy init code hash: ");
-        console2.logBytes32(keccak256(
-                                abi.encodePacked(
-                                    type(ApprovalProxy).creationCode,
-                                    abi.encode(owner, router)
-                                )));
+        if (!_hasBeenDeployed(router)) {
+            console2.log("Router has not been deployed, skipping");
+            return address(0);
+        }
 
         if (_hasBeenDeployed(predictedAddress)) {
             console2.log(
@@ -295,7 +268,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         }
 
         // Reuse salt for simplicity
-        ApprovalProxy approvalProxy = new ApprovalProxy{salt: APPROVAL_PROXY_V1_SALT}(
+        ApprovalProxy approvalProxy = new ApprovalProxy{salt: salt}(
             owner,
             router
         );
@@ -312,7 +285,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         return address(approvalProxy);
     }
 
-    /// @notice Deploys the ERC20 Router contract to the given chain
+    // @notice Deploys the ERC20 Router contract to the given chain
     function deployERC20Router(
         address permit2
     ) public returns (address) {
@@ -325,7 +298,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
                         abi.encodePacked(
                             bytes1(0xff),
                             FOUNDRY_CREATE2_FACTORY,
-                            ERC20_ROUTER_V1_SALT,
+                            salt,
                             keccak256(
                                 abi.encodePacked(
                                     type(ERC20Router).creationCode,
@@ -354,7 +327,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             return predictedAddress;
         }
 
-        ERC20Router router = new ERC20Router{salt: ERC20_ROUTER_V1_SALT}(
+        ERC20Router router = new ERC20Router{salt: salt}(
             permit2
         );
 
@@ -363,6 +336,60 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         }
 
         console2.log("ERC20 Router deployed: ", address(router));
+
+        return address(router);
+    }
+
+    function deployERC20Router__Shanghai(
+        address permit2
+    ) public returns (address) {
+        console2.log("Deploying ERC20 Router Shanghai...");
+
+        address predictedAddress = address(
+            uint160(
+                uint(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff),
+                            FOUNDRY_CREATE2_FACTORY,
+                            ERC20_ROUTER_V1_SALT,
+                            keccak256(
+                                abi.encodePacked(
+                                    type(ERC20Router__Shanghai).creationCode,
+                                    abi.encode(permit2)
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        );
+
+        console2.log("router init code hash: ");
+        console2.logBytes32(keccak256(
+                                abi.encodePacked(
+                                    type(ERC20Router__Shanghai).creationCode,
+                                    abi.encode(permit2)
+                )
+            ));
+
+        if (_hasBeenDeployed(predictedAddress)) {
+            console2.log(
+                "ERC20 Router has already been deployed at: ",
+                predictedAddress
+            );
+            return predictedAddress;
+        }
+
+        ERC20Router__Shanghai router = new ERC20Router__Shanghai{salt: salt}(
+            permit2
+        );
+
+        if (address(router) != predictedAddress) {
+            revert InvalidContractAddress(predictedAddress, address(router));
+        }
+
+        console2.log("ERC20Router Shanghai deployed: ", address(router));
 
         return address(router);
     }
