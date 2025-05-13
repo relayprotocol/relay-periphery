@@ -13,7 +13,7 @@ struct RelayerWitness {
     address relayer;
 }
 
-contract ERC20Router__Shanghai is MulticallerInternal {
+contract ERC20Router__NonTstore is MulticallerInternal {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
