@@ -8,13 +8,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
 import {MulticallerInternal} from "./MulticallerInternal.sol";
-import {ReentrancyGuard} from "./ReentrancyGuard.sol";
 
 struct RelayerWitness {
     address relayer;
 }
 
-contract ERC20Router__Shanghai is MulticallerInternal, ReentrancyGuard {
+contract ERC20Router__Shanghai is MulticallerInternal {
     using SafeERC20 for IERC20;
 
     // --- Errors --- //
@@ -70,7 +69,7 @@ contract ERC20Router__Shanghai is MulticallerInternal, ReentrancyGuard {
         uint256[] calldata values,
         address refundTo,
         bytes memory permitSignature
-    ) external payable nonReentrant returns (bytes[] memory) {
+    ) external payable returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -115,7 +114,7 @@ contract ERC20Router__Shanghai is MulticallerInternal, ReentrancyGuard {
         bytes[] calldata datas,
         uint256[] calldata values,
         address refundTo
-    ) external payable nonReentrant returns (bytes[] memory) {
+    ) external payable returns (bytes[] memory) {
         // Revert if array lengths do not match
         if (targets.length != datas.length || datas.length != values.length) {
             revert ArrayLengthsMismatch();
@@ -149,7 +148,7 @@ contract ERC20Router__Shanghai is MulticallerInternal, ReentrancyGuard {
     /// @dev Should be included in the multicall if the router is expecting to receive tokens
     /// @param token The address of the ERC20 token
     /// @param refundTo The address to refund the tokens to
-    function cleanupERC20(address token, address refundTo) external nonReentrant {
+    function cleanupERC20(address token, address refundTo) external {
         // Check the router's balance for the token
         uint256 balance = IERC20(token).balanceOf(address(this));
 
