@@ -247,7 +247,7 @@ contract SingleChainDeployer is Script, Test, BaseDeployer {
     function deployERC20Router__Shanghai(
         address permit2
     ) public returns (address) {
-        console2.log("Deploying ERC20 Router...");
+        console2.log("Deploying ERC20 Router Shanghai...");
 
         address predictedAddress = address(
             uint160(

@@ -170,7 +170,8 @@ contract BaseDeployer is Script {
         BitcoinTestnet4,
         Corn,
         HyperEvm,
-        Plume
+        Plume,
+        Gunz
     }
 
     /// @dev Mapping of chain enum to name
@@ -300,6 +301,7 @@ contract BaseDeployer is Script {
         forks[Chains.Corn] = "corn";
         forks[Chains.HyperEvm] = "hyperevm";
         forks[Chains.Plume] = "plume";
+        forks[Chains.Gunz] = "gunz";
     }
 
     function createFork(Chains chain) public {

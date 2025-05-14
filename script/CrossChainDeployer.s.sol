@@ -9,7 +9,7 @@ import {Permit2} from "permit2-relay/src/Permit2.sol";
 import {ApprovalProxy} from "../src/v1/ApprovalProxyV1.sol";
 import {OnlyOwnerMulticaller} from "../src/v1/OnlyOwnerMulticallerV1.sol";
 import {ERC20Router} from "../src/v1/ERC20RouterV1.sol";
-import {ERC20Router__Shanghai} from "../src/v1/ERC20Router__Shanghai.sol";
+import {ERC20Router__NonTstore} from "../src/v1/ERC20Router__NonTstore.sol";
 import {RelayReceiver} from "../src/v1/RelayReceiverV1.sol";
 import {BaseDeployer} from "./BaseDeployer.s.sol";
 
@@ -21,11 +21,6 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
     error InvalidContractAddress(address expected, address actual);
 
     bytes32 constant salt = bytes32(uint256(1));
-
-    // 0xaaaaaaae92Cc1cEeF79a038017889fDd26D23D4d
-    bytes32 constant APPROVAL_PROXY_V1_SALT = 0x0000000000000000000000000000000000000000a5b08fa2e0ed3bdbef020080;
-
-    bytes32 constant ERC20_ROUTER_V1_SALT = bytes32(uint256(1));
 
     function setUp() public {}
 
@@ -105,8 +100,24 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         // deployForks[66] = Chains.Cronos;
         // deployForks[67] = Chains.Taiko;
         // deployForks[68] = Chains.Celo;
-
+        // deployForks[69] = Chains.Hekla;
+        // deployForks[70] = Chains.ZoraSepolia;
+        // deployForks[71] = Chains.FunkiTestnet;
+        // deployForks[72] = Chains.LiskSepolia;
+        // deployForks[73] = Chains.ShapeSepolia;
+        // deployForks[74] = Chains.Sepolia;
+        // deployForks[75] = Chains.BaseSepolia;
+        // deployForks[76] = Chains.PopCloudTestnet;
+        // deployForks[77] = Chains.UnichainSepolia;
+        // deployForks[78] = Chains.ArenaZTestnet;
+        // deployForks[79] = Chains.Pyrope;
+        // deployForks[80] = Chains.Odyssey;
+        // deployForks[81] = Chains.MantaPacificTestnet;
+        // deployForks[82] = Chains.B3Sepolia;
+        // deployForks[83] = Chains.ModeTestnet;
+        // deployForks[84] = Chains.OpSepolia;
         
+        deployForks[0] = Chains.Gunz;
 
         for (uint256 i; i < deployForks.length; ++i) {
             if (deployForks[i] == Chains.Null) {
@@ -127,22 +138,22 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             }
 
             vm.startBroadcast(owner);
-            // address erc20Router = deployERC20Router(
-            //     PERMIT2
-            // );
-            address approvalProxy = deployApprovalProxy(0x6f3158867645E302043E1E00ded57e648D5310EC);
-            // address permit2 = deployPermit2();
-            // address multicaller = deployMulticaller();
-            // address erc20RouterShanghai = deployERC20Router__Shanghai(
+            address permit2 = deployPermit2();
+            address erc20Router = deployERC20Router(
+                permit2
+            );
+            // address erc20RouterNonTstore = deployERC20Router__NonTstore(
             //     permit2
             // );
+            address approvalProxy = deployApprovalProxy(erc20Router);
+            // address multicaller = deployMulticaller();
             // deployApprovalProxy(erc20Router);
-            // if (vm.envBool("IS_TESTNET") == true) {
-            //     deployRelayReceiver(TESTNET_SOLVER);
-            // } else {
-            //     deployRelayReceiver(SOLVER);
-            // }
-            // deployOnlyOwnerMulticaller();
+            if (vm.envBool("IS_TESTNET") == true) {
+                deployRelayReceiver(TESTNET_SOLVER);
+            } else {
+                deployRelayReceiver(SOLVER);
+            }
+            deployOnlyOwnerMulticaller();
 
             vm.stopBroadcast();
 
@@ -340,10 +351,10 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         return address(router);
     }
 
-    function deployERC20Router__Shanghai(
+    function deployERC20Router__NonTstore(
         address permit2
     ) public returns (address) {
-        console2.log("Deploying ERC20 Router Shanghai...");
+        console2.log("Deploying ERC20 Router NonTstore...");
 
         address predictedAddress = address(
             uint160(
@@ -352,10 +363,10 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
                         abi.encodePacked(
                             bytes1(0xff),
                             FOUNDRY_CREATE2_FACTORY,
-                            ERC20_ROUTER_V1_SALT,
+                            salt,
                             keccak256(
                                 abi.encodePacked(
-                                    type(ERC20Router__Shanghai).creationCode,
+                                    type(ERC20Router__NonTstore).creationCode,
                                     abi.encode(permit2)
                                 )
                             )
@@ -368,7 +379,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         console2.log("router init code hash: ");
         console2.logBytes32(keccak256(
                                 abi.encodePacked(
-                                    type(ERC20Router__Shanghai).creationCode,
+                                    type(ERC20Router__NonTstore).creationCode,
                                     abi.encode(permit2)
                 )
             ));
@@ -381,7 +392,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             return predictedAddress;
         }
 
-        ERC20Router__Shanghai router = new ERC20Router__Shanghai{salt: salt}(
+        ERC20Router__NonTstore router = new ERC20Router__NonTstore{salt: salt}(
             permit2
         );
 
@@ -389,7 +400,7 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
             revert InvalidContractAddress(predictedAddress, address(router));
         }
 
-        console2.log("ERC20Router Shanghai deployed: ", address(router));
+        console2.log("ERC20Router NonTstore deployed: ", address(router));
 
         return address(router);
     }
@@ -453,36 +464,6 @@ contract CrossChainDeployer is Script, Test, BaseDeployer {
         console2.log("Permit2 deployed:", PERMIT2);
 
         return PERMIT2;
-    }
-
-    function deployOnlyOwnerMulticaller__latestBytecode(
-        address expectedAddress
-    ) public returns (address) {
-        console2.log("Deploying OnlyOwnerMulticaller...");
-
-        if (_hasBeenDeployed(expectedAddress)) {
-            console2.log(
-                "OnlyOwnerMulticaller has already been deployed at: ",
-                expectedAddress
-            );
-            return expectedAddress;
-        }
-
-        // 0xb90ed4c123843cbFD66b11411Ee7694eF37E6E72
-        (bool success, bytes memory data) = FOUNDRY_CREATE2_FACTORY.call(
-            hex"0000000000000000000000000000000000000000ef4834b251a91000a916248a60803461008e57601f6105f738819003918201601f19168301916001600160401b038311848410176100935780849260209460405283398101031261008e57516001600160a01b0381169081900361008e5780638b78c6d8195560007f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08180a360405161054d90816100aa8239f35b600080fd5b634e487b7160e01b600052604160045260246000fdfe60806040526004361015610015575b3661043857005b6000803560e01c90816325692962146100985750806354d1f13d14610093578063715018a61461008e5780638da5cb5b14610089578063991f255f14610084578063f04e283e1461007f578063f2fde38b1461007a5763fee81cf40361000e57610405565b6103c9565b610377565b610202565b610173565b61012c565b6100e5565b806003193601126100e25763389a75e1600c523381526202a30042016020600c2055337fdbf36a107da19e49527a7176a1babf963b4b0ff8cde35ee35d6cd8f1f9ac7e1d8280a280f35b80fd5b6000806003193601126100e25763389a75e1600c52338152806020600c2055337ffa7b8eab7da67f412cc9575ed43464468f9bfbae89d1675917346ca6d8fe3c928280a280f35b6000806003193601126100e2576101416104c1565b80638b78c6d8198181547f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e08280a35580f35b346101a05760003660031901126101a057638b78c6d819546040516001600160a01b039091168152602090f35b600080fd5b9181601f840112156101a05782359167ffffffffffffffff83116101a0576020808501948460051b0101116101a057565b606435906001600160a01b03821682036101a057565b600435906001600160a01b03821682036101a057565b60803660031901126101a05767ffffffffffffffff6004358181116101a05761022f9036906004016101a5565b90916024358181116101a0576102499036906004016101a5565b9390916044359081116101a0576102649036906004016101a5565b929061026e6101d6565b936102776104c1565b8614868614161561036a5785926040966102e4575b50505050806102a3575b5060206000526020526000f35b47156102965733811860018214021860003881804785620186a0f1610296576000526073600b5360ff6020536016600b47f0156102e05738610296565b3838fd5b91939592839060051b9283868637838501935b82518701908681018235908160208095018237600080809383603f19808b8d010135908b8b0101355af115610361578286523d90523d90606083013e603f601f19913d01011692019588858814610350575095916102f7565b96505050915050019238808061028c565b503d81803e3d90fd5b633b800a463d526004601cfd5b60203660031901126101a05761038b6101ec565b6103936104c1565b63389a75e1600c52806000526020600c2090815442116103bb5760006103b992556104de565b005b636f5e88186000526004601cfd5b60203660031901126101a0576103dd6101ec565b6103e56104c1565b8060601b156103f7576103b9906104de565b637448fbae6000526004601cfd5b346101a05760203660031901126101a05761041e6101ec565b63389a75e1600c52600052602080600c2054604051908152f35b3d356366e0daa08160e01c1461044c573d3dfd5b193d5260043d815b8092368210156104a7578135831a600180930194811561047b5750815301905b9091610454565b3d19835260020194607f9150353d1a8181111561049c575b16010190610474565b838101388439610493565b600080809281305af43d82803e156104bd573d90f35b3d90fd5b638b78c6d8195433036104d057565b6382b429006000526004601cfd5b60018060a01b0316638b78c6d8198181547f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0600080a35556fea264697066735822122019c6e5e37b4bd8c4f76bdcd77ff33167fa20318acdbcffc98e8424da4d545ad664736f6c63430008170033000000000000000000000000f70da97812cb96acdf810712aa562db8dfa3dbef"
-        );
-
-        if (!success || address(bytes20(data)) != expectedAddress) {
-            revert InvalidContractAddress(
-                expectedAddress,
-                address(bytes20(data))
-            );
-        }
-
-        console2.log("OnlyOwnerMulticaller deployed: ", expectedAddress);
-
-        return expectedAddress;
     }
 
     function _hasBeenDeployed(
