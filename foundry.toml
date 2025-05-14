@@ -6,7 +6,7 @@ out = "out"
 libs = ["lib"]
 via_ir = true
 
-[profile.metadata]
+[profile.cancun]
 auto_detect_solc = true
 evm_version = "cancun"
 src = "src"
@@ -50,7 +50,7 @@ cbor_metadata = false
 fs_permissions = [{ access = "read", path = "./" }]
 
 [rpc_endpoints]
-amoy = "https://rpc-amoy.polygon.technology"
+amoy = "https://polygon-amoy-bor-rpc.publicnode.com"
 holesky = "https://ethereum-holesky.publicnode.com"
 arbitrum_sepolia = "https://rpc.therpc.io/arbitrum-sepolia"
 solana_devnet = "https://warmhearted-icy-patina.solana-devnet.quiknode.pro/225e943243dbad5847aa15fd68d350246a52062b/"
@@ -129,7 +129,7 @@ eclipse_testnet = "https://testnet.dev2.eclipsenetwork.xyz"
 zero_testnet = "https://rpc.zerion.io/v1/zero-sepolia"
 worldchain = "https://worldchain-mainnet.g.alchemy.com/public"
 apechain = "https://apechain.calderachain.xyz/http"
-unichain = "https://unichain.drpc.org"
+unichain = "https://unichain-rpc.publicnode.com"
 mantle = "https://rpc.mantle.xyz"
 berachain = "https://rpc.berachain.com"
 sonic = "https://rpc.soniclabs.com"
@@ -162,7 +162,7 @@ superseed = "https://mainnet.superseed.xyz"
 zircuit = "https://mainnet.zircuit.com"
 morph = "https://rpc-quicknode.morphl2.io"
 manta_pacific = "https://pacific-rpc.manta.network/http"
-anime_chain = "https://rpc-animechain-39xf6m45e3.t.conduit.xyz/Kzy4aQJhDyC6rSUu36dqkZM7eX5Wq8JqJ"
+anime_chain = "https://public-rpc.anime.xyz"
 unichain_sepolia = "https://sepolia.unichain.org"
 arena_z_testnet = "https://rpc.arena-z.t.raas.gelato.cloud"
 abstract = "https://api.testnet.abs.xyz"
@@ -175,6 +175,7 @@ bitcoin_testnet4 = "https://mempool.space/testnet4/api"
 corn = "https://mainnet.corn-rpc.com"
 hyperevm = "https://rpc.hyperliquid.xyz/evm"
 plume = "https://phoenix-rpc.plumenetwork.xyz"
+gunz = "https://subnets.avax.network/gunzilla/mainnet/rpc"
 
 [etherscan]
 # Mainnets
