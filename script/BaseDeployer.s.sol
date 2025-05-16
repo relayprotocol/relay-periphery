@@ -150,14 +150,32 @@ contract BaseDeployer is Script {
         Eclipse,
         Ronin,
         Rootstock,
-        Null
+        Metis,
+        Cronos,
+        Null,
+        Appchain,
+        Superseed,
+        Zircuit,
+        Morph,
+        MantaPacific,
+        Hemi,
+        AnimeChain,
+        UnichainSepolia,
+        ArenaZTestnet,
+        Pyrope,
+        Odyssey,
+        AnimechainTestnet,
+        MantaPacificTestnet,
+        LordchainTestnet,
+        BitcoinTestnet4,
+        Corn,
+        HyperEvm,
+        Plume,
+        Gunz
     }
 
     /// @dev Mapping of chain enum to name
     mapping(Chains chains => string name) public forks;
-
-    mapping(uint256 chainId => bool noImmutableCreate2Factory)
-        public noImmutableCreate2Factory;
 
     constructor() {
         forks[Chains.Amoy] = "amoy";
@@ -250,7 +268,6 @@ contract BaseDeployer is Script {
         forks[Chains.Perennial] = "perennial";
         forks[Chains.Story] = "story";
         forks[Chains.Gravity] = "gravity";
-        forks[Chains.Soneium] = "soneium";
         forks[Chains.Swellchain] = "swellchain";
         forks[Chains.Sanko] = "sanko";
         forks[Chains.Game7] = "game7";
@@ -260,19 +277,31 @@ contract BaseDeployer is Script {
         forks[Chains.ArenaZ] = "arena_z";
         forks[Chains.Superposition] = "superposition";
         forks[Chains.Ink] = "ink";
-        forks[Chains.Boss] = "boss";
         forks[Chains.Forma] = "forma";
         forks[Chains.Eclipse] = "eclipse";
         forks[Chains.Ronin] = "ronin";
         forks[Chains.Rootstock] = "rootstock";
-        // ImmutableCreate2Factory at 0x0000000000FFe8B47B3e2130213B802212439497 cannot be deployed to following chains
-        noImmutableCreate2Factory[288] = true; // Boba
-        noImmutableCreate2Factory[33979] = true; // Funki
-        noImmutableCreate2Factory[167009] = true; // Hekla
-        noImmutableCreate2Factory[3397901] = true; // Funki testnet
-        noImmutableCreate2Factory[4202] = true; // Lisk sepolia
-        noImmutableCreate2Factory[11011] = true; // Shape sepolia
-        noImmutableCreate2Factory[52509] = true; // M integrations testnet
+        forks[Chains.Metis] = "metis";
+        forks[Chains.Cronos] = "cronos";
+        forks[Chains.Appchain] = "appchain";
+        forks[Chains.Superseed] = "superseed";
+        forks[Chains.Zircuit] = "zircuit";
+        forks[Chains.Morph] = "morph";
+        forks[Chains.MantaPacific] = "manta_pacific";
+        forks[Chains.Hemi] = "hemi";
+        forks[Chains.AnimeChain] = "anime_chain";
+        forks[Chains.UnichainSepolia] = "unichain_sepolia";
+        forks[Chains.ArenaZTestnet] = "arena_z_testnet";
+        forks[Chains.Pyrope] = "pyrope";
+        forks[Chains.Odyssey] = "odyssey";
+        forks[Chains.AnimechainTestnet] = "animechain_testnet";
+        forks[Chains.MantaPacificTestnet] = "manta_pacific_testnet";
+        forks[Chains.LordchainTestnet] = "lordchain_testnet";
+        forks[Chains.BitcoinTestnet4] = "bitcoin_testnet4";
+        forks[Chains.Corn] = "corn";
+        forks[Chains.HyperEvm] = "hyperevm";
+        forks[Chains.Plume] = "plume";
+        forks[Chains.Gunz] = "gunz";
     }
 
     function createFork(Chains chain) public {

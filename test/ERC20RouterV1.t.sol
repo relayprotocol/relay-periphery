@@ -20,6 +20,7 @@ import {BaseRelayTest} from "./base/BaseRelayTest.sol";
 import {IUniswapV2Router01} from "./interfaces/IUniswapV2Router02.sol";
 import {CleanupReenterer} from "./mocks/CleanupReenterer.sol";
 import {CleanupReentererDelegatecall} from "./mocks/CleanupReentererDelegatecall.sol";
+import {Multicaller} from "multicaller/src/Multicaller.sol";
 struct RelayerWitness {
     address relayer;
 }
@@ -264,6 +265,13 @@ contract ERC20RouterV1Test is Test, BaseRelayTest {
             alice.addr
         );
 
+        vm.prank(bob.addr);
+        router.delegatecallMulticall{value: 1 ether}(
+            targets,
+            datas,
+            values,
+            address(0)
+        );
         uint256 aliceBalanceAfter = alice.addr.balance;
         uint256 aliceUSDCBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
 
@@ -770,35 +778,56 @@ contract ERC20RouterV1Test is Test, BaseRelayTest {
     }
 
     function testERC721__SafeMintCorrectRecipient() public {
+        Multicaller multicaller = new Multicaller();
         TestERC721 erc721 = new TestERC721();
 
-        address[] memory targets = new address[](2);
+        address[] memory targets = new address[](1);
         targets[0] = address(erc721);
-        targets[1] = address(erc721);
         bytes[] memory datas = new bytes[](1);
         datas[0] = abi.encodeWithSignature(
             "safeMint(address,uint256)",
             address(router),
             1
         );
-        datas[1] = abi.encodeWithSignature(
-            "safeMint(address,uint256)",
-            address(router),
-            2
-        );
 
         uint256[] memory values = new uint256[](1);
         values[0] = 0;
 
-        vm.prank(alice.addr);
-        router.delegatecallMulticall(targets, datas, values, alice.addr);
+        bytes[] memory multicallDatas = new bytes[](2);
+        multicallDatas[0] = abi.encodeWithSelector(
+            ERC20Router.delegatecallMulticall.selector,
+            targets,
+            datas,
+            values,
+            alice.addr
+        );
 
+        datas[0] = abi.encodeWithSignature("safeMint(address,uint256)", address(router), 2);
+
+        multicallDatas[1] = abi.encodeWithSelector(
+            ERC20Router.delegatecallMulticall.selector,
+            targets,
+            datas,
+            values,
+            address(0)
+        );
+
+        address[] memory multicallTargets = new address[](2);
+        multicallTargets[0] = address(router);
+        multicallTargets[1] = address(router);
+
+        uint256[] memory multicallValues = new uint256[](2);
+        multicallValues[0] = 0;
+        multicallValues[1] = 0;
+
+        vm.prank(alice.addr);
+        multicaller.aggregate(multicallTargets, multicallDatas, multicallValues, address(0));
         assertEq(erc721.ownerOf(1), alice.addr);
+        assertEq(erc721.ownerOf(2), alice.addr);
 
+        datas[0] = abi.encodeWithSignature("safeMint(address,uint256)", address(router), 3);
         vm.prank(alice.addr);
-        router.delegatecallMulticall(targets, datas, values, bob.addr);
-
-        assertEq(erc721.ownerOf(2), bob.addr);
+        router.delegatecallMulticall(targets, datas, values, address(0));
     }
 
     function testERC721__MintMsgSender() public {

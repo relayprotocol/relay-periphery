@@ -6,7 +6,7 @@ out = "out"
 libs = ["lib"]
 via_ir = true
 
-[profile.metadata]
+[profile.cancun]
 auto_detect_solc = true
 evm_version = "cancun"
 src = "src"
@@ -23,13 +23,36 @@ src = "src"
 out = "out"
 libs = ["lib"]
 via_ir = true
+bytecode_hash = "none"
+cbor_metadata = false
+
+[profile.london]
+solc = "0.8.25"
+evm_version = "london"
+src = "src"
+out = "out"
+libs = ["lib"]
+via_ir = false
+bytecode_hash = "none"
+cbor_metadata = false
+
+[profile.paris]
+auto_detect_solc = true
+evm_version = "paris"
+src = "src"
+out = "out"
+libs = ["lib"]
+via_ir = true
+bytecode_hash = "none"
+cbor_metadata = false
+
 
 fs_permissions = [{ access = "read", path = "./" }]
 
 [rpc_endpoints]
-amoy = "https://warmhearted-wiser-spring.matic-amoy.quiknode.pro/7672f450baa71d892346bb2fc6845b0331e5c85d/"
+amoy = "https://polygon-amoy-bor-rpc.publicnode.com"
 holesky = "https://ethereum-holesky.publicnode.com"
-arbitrum_sepolia = "https://spring-multi-thunder.arbitrum-sepolia.quiknode.pro/e464b44bbfcfc4069ad869e5fb9fadfd9f56f72f/"
+arbitrum_sepolia = "https://rpc.therpc.io/arbitrum-sepolia"
 solana_devnet = "https://warmhearted-icy-patina.solana-devnet.quiknode.pro/225e943243dbad5847aa15fd68d350246a52062b/"
 debank_testnet = "http://rpc.testnet.debank.com"
 manta_testnet = "https://manta-pacific-testnet.drpc.org"
@@ -45,11 +68,11 @@ blast_sepolia = "https://fittest-lively-energy.blast-sepolia.quiknode.pro/e86263
 astar_zkyoto = "https://rpc.zkyoto.gelato.digital"
 hypr = "https://rpc-testnet.hypr.network/"
 hekla = "https://rpc.hekla.taiko.xyz"
-op_sepolia = "https://damp-ultra-resonance.optimism-sepolia.quiknode.pro/b6bc41ce6c01e55318cb088b9ade3b8f9af6fa0c/"
+op_sepolia = "https://rpc.therpc.io/optimism-sepolia"
 garnet = "https://rpc.garnet.qry.live"
 ancient8_celestia_testnet = "https://rpcv2-testnet.ancient8.gg/8R2AbRhkvTrKgGyEWkmbSBGzjKbzKx1cv"
 atlas = "https://l2-atlas-ltzdfao2b6.t.conduit.xyz"
-b3 = "https://sepolia.b3.fun/http"
+b3 = "https://mainnet-rpc.b3.fun/http"
 zora_sepolia = "https://sepolia.rpc.zora.energy"
 funki_testnet = "https://funki-testnet.alt.technology"
 lisk_sepolia = "https://rpc.sepolia-api.lisk.com"
@@ -58,7 +81,7 @@ game7_testnet = "https://rpc-game7-testnet-0ilneybprf.t.conduit.xyz"
 shape_sepolia = "https://sepolia.shape.network/"
 arbitrum_blueberry = "https://rpc.arb-blueberry.gelato.digital"
 m_integrations_testnet = "https://rpc-m-integrations-testnet-kn5qqp4tzd.t.conduit-stg.xyz"
-sepolia = "https://responsive-flashy-spring.ethereum-sepolia.quiknode.pro/a4e86c916409d39b7b8be85c4a17fab4f26b427e/"
+sepolia = "https://ethereum-sepolia-rpc.publicnode.com"
 memecoin_2 = "https://rpc-memecoin-2-7m5e84e2pz.t.conduit.xyz"
 base_sepolia = "https://sepolia.base.org"
 redstone = "https://rpc.redstonechain.com/"
@@ -83,12 +106,12 @@ solana = "https://wild-magical-darkness.solana-mainnet.quiknode.pro/29d5577cf069
 onchain_points = "https://rpc-onchain-points-8n0qkkpr2j.t.conduit.xyz"
 polygon_zkevm = "https://yolo-proportionate-asphalt.zkevm-mainnet.quiknode.pro/63e56ccf849ce2a176a40f31272baae22965c492/"
 arbitrum_nova = "https://distinguished-boldest-layer.nova-mainnet.quiknode.pro/991046398297653a9f0ff1293ce912630986fd5f/"
-taiko = "https://taiko.drpc.org"
+taiko = "https://rpc.mainnet.taiko.xyz"
 boba = "https://mainnet.boba.network"
 cyber = "https://rpc.cyber.co"
 arbitrum = "https://bold-few-mountain.arbitrum-mainnet.quiknode.pro/141c1fd7dd64a97d4d3c52d1487dbbefc55603b3/"
 scroll = "https://rpc.scroll.io"
-mainnet = "https://multi-hidden-season.quiknode.pro/1330cd9c226307d0f722003a01b68cc844344a39/"
+mainnet = "https://eth.llamarpc.com"
 bsc = "https://fabled-black-sanctuary.bsc.quiknode.pro/8dba6ccc07667feafd0dd6064281c2a46ae353ed/"
 base = "https://aged-compatible-pine.base-mainnet.quiknode.pro/86247a56f7f36a0f0c0b10eb65061748f66bce7c/"
 mint = "https://rpc.mintchain.io"
@@ -106,7 +129,7 @@ eclipse_testnet = "https://testnet.dev2.eclipsenetwork.xyz"
 zero_testnet = "https://rpc.zerion.io/v1/zero-sepolia"
 worldchain = "https://worldchain-mainnet.g.alchemy.com/public"
 apechain = "https://apechain.calderachain.xyz/http"
-unichain = "https://unichain.drpc.org"
+unichain = "https://unichain-rpc.publicnode.com"
 mantle = "https://rpc.mantle.xyz"
 berachain = "https://rpc.berachain.com"
 sonic = "https://rpc.soniclabs.com"
@@ -122,16 +145,37 @@ sanko = "https://mainnet.sanko.xyz"
 game7 = "https://mainnet-rpc.game7.io/"
 hychain = "https://rpc.hychain.com/http"
 echos = "https://rpc-echos-mainnet-0.t.conduit.xyz"
-powerloom = "https://rpc.powerloom.network"
+powerloom = "https://rpc-v2.powerloom.network"
 arena_z = "https://rpc.arena-z.gg"
 superposition = "https://rpc.superposition.so"
 ink = "https://rpc-qnd.inkonchain.com"
 forma = "https://rpc.forma.art"
 eclipse = "https://mainnetbeta-rpc.eclipse.xyz"
 ronin = "https://api.roninchain.com/rpc"
-rootstock = "https://public-node.rsk.co"
+rootstock = "https://mycrypto.rsk.co"
 appchain = "https://appchain.calderachain.xyz/http"
 hemi = "https://rpc.hemi.network/rpc"
+metis = "https://andromeda.metis.io/?owner=1088"
+celo = "https://rpc.ankr.com/celo"
+cronos = "https://cronos-evm-rpc.publicnode.com"
+superseed = "https://mainnet.superseed.xyz"
+zircuit = "https://mainnet.zircuit.com"
+morph = "https://rpc-quicknode.morphl2.io"
+manta_pacific = "https://pacific-rpc.manta.network/http"
+anime_chain = "https://public-rpc.anime.xyz"
+unichain_sepolia = "https://sepolia.unichain.org"
+arena_z_testnet = "https://rpc.arena-z.t.raas.gelato.cloud"
+abstract = "https://api.testnet.abs.xyz"
+pyrope = "https://rpc.pyropechain.com"
+odyssey = "https://odyssey.ithaca.xyz"
+animechain_testnet = "https://rpc-animechain-testnet-i8yja6a1a0.t.conduit.xyz/PjQvQEkAZPqxaxWmyjK2Uh4LiXqMk5xP6"
+manta_pacific_testnet = "https://pacific-rpc.sepolia-testnet.manta.network/http"
+lordchain_testnet = "https://lordchain-rpc-testnet.appchain.base.org"
+bitcoin_testnet4 = "https://mempool.space/testnet4/api"
+corn = "https://mainnet.corn-rpc.com"
+hyperevm = "https://rpc.hyperliquid.xyz/evm"
+plume = "https://phoenix-rpc.plumenetwork.xyz"
+gunz = "https://subnets.avax.network/gunzilla/mainnet/rpc"
 
 [etherscan]
 # Mainnets
