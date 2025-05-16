@@ -35,7 +35,8 @@ contract Permit2 is Test, BaseRelayTest {
     address router = 0xeeeeee9eC4769A09a76A83C7bC42b185872860eE;
     address permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    string public constant _RELAYER_WITNESS_TYPE_STRING = "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
+    string public constant _V1_RELAYER_WITNESS_TYPE_STRING = "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
+    string public constant _V2_RELAYER_WITNESS_TYPE_STRING = "RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
         keccak256(
             "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
@@ -112,7 +113,7 @@ contract Permit2 is Test, BaseRelayTest {
             signatureTransferDetails,
             targetUser,
             witness,
-            _RELAYER_WITNESS_TYPE_STRING,
+            _V1_RELAYER_WITNESS_TYPE_STRING,
             permitSignature
         );
         datas[1] = abi.encodeWithSignature(
@@ -169,7 +170,7 @@ contract Permit2 is Test, BaseRelayTest {
             signatureTransferDetails,
             targetUser,
             witness,
-            _RELAYER_WITNESS_TYPE_STRING,
+            _V1_RELAYER_WITNESS_TYPE_STRING,
             permitSignature
         );
         datas[1] = abi.encodeWithSignature(
@@ -263,7 +264,7 @@ contract Permit2 is Test, BaseRelayTest {
             address(approvalProxy),
             alice.key,
             _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
-            witness,
+            v2Witness,
             DOMAIN_SEPARATOR
         );
 
@@ -271,10 +272,10 @@ contract Permit2 is Test, BaseRelayTest {
             0xfe8ec1a7, // selector of permit2.permitWitnessTransferFrom
             permit,
             signatureTransferDetails,
-            targetUser,
-            witness,
-            _RELAYER_WITNESS_TYPE_STRING,
-            permitSignature
+            alice.addr,
+            v2Witness,
+            _V2_RELAYER_WITNESS_TYPE_STRING,
+            permitSig
         );
         bytes memory attackerCalldata2 = abi.encodeWithSignature(
             "transfer(address,uint256)",
@@ -300,10 +301,10 @@ contract Permit2 is Test, BaseRelayTest {
         // Attacker frontruns the permit multicall
         vm.prank(attacker);
         approvalProxy.permit2TransferAndMulticall(
-            attacker,
+            alice.addr,
             permit,
             attackerCalls,
-            attacker,
+            alice.addr,
             address(0),
             bytes("")
         );
