@@ -173,7 +173,7 @@ contract RelayRouter is Multicall3, ReentrancyGuardMsgSender, Tstorish {
     }
 
     /// @notice Send leftover native tokens via an explicit method call
-    /// @dev Set amount to 0 to transfer the full balance. Set recipient to address(0) to transfer to msg.sender
+    /// @dev Set amount to 0 to transfer the full balance
     /// @param amount The amount of native tokens to transfer
     /// @param to The target address of the call
     /// @param data The data for the call

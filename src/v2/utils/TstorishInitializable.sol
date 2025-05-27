@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Initializable} from "@openzeppelin-contracts-upgradeable/proxy/utils/Initializable.sol";
+import {Initializable} from "@openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 
 contract TstorishInitializable is Initializable {
     // Declare a storage variable indicating if TSTORE support has been
@@ -34,7 +34,7 @@ contract TstorishInitializable is Initializable {
 
     // Declare an immutable function type variable for the _setTstorish function
     // based on chain support for tstore at time of deployment.
-    function(uint256,uint256) internal _setTstorish;
+    function(uint256, uint256) internal _setTstorish;
 
     // Declare an immutable function type variable for the _getTstorish function
     // based on chain support for tstore at time of deployment.
@@ -75,7 +75,7 @@ contract TstorishInitializable is Initializable {
             _getTstorish = _getTstore;
             _clearTstorish = _clearTstore;
         } else {
-            // If TSTORE is not supported, set functions to their versions that 
+            // If TSTORE is not supported, set functions to their versions that
             // fallback to sstore/sload until _tstoreSupport is true.
             _setTstorish = _setTstorishWithSstoreFallback;
             _getTstorish = _getTstorishWithSloadFallback;
@@ -116,7 +116,7 @@ contract TstorishInitializable is Initializable {
     }
 
     /**
-     * @dev Private function to set a TSTORISH value. Assigned to _setTstorish 
+     * @dev Private function to set a TSTORISH value. Assigned to _setTstorish
      *      internal function variable at construction if chain has tstore support.
      *
      * @param storageSlot The slot to write the TSTORISH value to.
@@ -129,14 +129,17 @@ contract TstorishInitializable is Initializable {
     }
 
     /**
-     * @dev Private function to set a TSTORISH value with sstore fallback. 
+     * @dev Private function to set a TSTORISH value with sstore fallback.
      *      Assigned to _setTstorish internal function variable at construction
      *      if chain does not have tstore support.
      *
      * @param storageSlot The slot to write the TSTORISH value to.
      * @param value       The value to write to the given storage slot.
      */
-    function _setTstorishWithSstoreFallback(uint256 storageSlot, uint256 value) private {
+    function _setTstorishWithSstoreFallback(
+        uint256 storageSlot,
+        uint256 value
+    ) private {
         if (_tstoreSupport) {
             assembly {
                 tstore(storageSlot, value)
@@ -165,7 +168,7 @@ contract TstorishInitializable is Initializable {
     }
 
     /**
-     * @dev Private function to read a TSTORISH value with sload fallback. 
+     * @dev Private function to read a TSTORISH value with sload fallback.
      *      Assigned to _getTstorish internal function variable at construction
      *      if chain does not have tstore support.
      *
@@ -188,7 +191,7 @@ contract TstorishInitializable is Initializable {
     }
 
     /**
-     * @dev Private function to clear a TSTORISH value. Assigned to _clearTstorish internal 
+     * @dev Private function to clear a TSTORISH value. Assigned to _clearTstorish internal
      *      function variable at construction if chain has tstore support.
      *
      * @param storageSlot The slot to clear the TSTORISH value for.
@@ -200,7 +203,7 @@ contract TstorishInitializable is Initializable {
     }
 
     /**
-     * @dev Private function to clear a TSTORISH value with sstore fallback. 
+     * @dev Private function to clear a TSTORISH value with sstore fallback.
      *      Assigned to _clearTstorish internal function variable at construction
      *      if chain does not have tstore support.
      *
@@ -248,6 +251,6 @@ contract TstorishInitializable is Initializable {
         // Call the test contract, which will perform a TLOAD test. If the call
         // does not revert, then TLOAD/TSTORE is supported. Do not forward all
         // available gas, as all forwarded gas will be consumed on revert.
-        (ok, ) = tloadTestContract.staticcall{ gas: gasleft() / 10 }("");
+        (ok, ) = tloadTestContract.staticcall{gas: gasleft() / 10}("");
     }
 }

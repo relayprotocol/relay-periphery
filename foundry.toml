@@ -46,8 +46,9 @@ via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
 
-
 fs_permissions = [{ access = "read", path = "./" }]
+
+etherscan_api_key = "${ETHERSCAN_API_KEY}"
 
 [rpc_endpoints]
 amoy = "https://polygon-amoy-bor-rpc.publicnode.com"
@@ -155,57 +156,3 @@ ronin = "https://api.roninchain.com/rpc"
 rootstock = "https://mycrypto.rsk.co"
 appchain = "https://appchain.calderachain.xyz/http"
 hemi = "https://rpc.hemi.network/rpc"
-metis = "https://andromeda.metis.io/?owner=1088"
-celo = "https://rpc.ankr.com/celo"
-cronos = "https://cronos-evm-rpc.publicnode.com"
-superseed = "https://mainnet.superseed.xyz"
-zircuit = "https://mainnet.zircuit.com"
-morph = "https://rpc-quicknode.morphl2.io"
-manta_pacific = "https://pacific-rpc.manta.network/http"
-anime_chain = "https://public-rpc.anime.xyz"
-unichain_sepolia = "https://sepolia.unichain.org"
-arena_z_testnet = "https://rpc.arena-z.t.raas.gelato.cloud"
-abstract = "https://api.testnet.abs.xyz"
-pyrope = "https://rpc.pyropechain.com"
-odyssey = "https://odyssey.ithaca.xyz"
-animechain_testnet = "https://rpc-animechain-testnet-i8yja6a1a0.t.conduit.xyz/PjQvQEkAZPqxaxWmyjK2Uh4LiXqMk5xP6"
-manta_pacific_testnet = "https://pacific-rpc.sepolia-testnet.manta.network/http"
-lordchain_testnet = "https://lordchain-rpc-testnet.appchain.base.org"
-bitcoin_testnet4 = "https://mempool.space/testnet4/api"
-corn = "https://mainnet.corn-rpc.com"
-hyperevm = "https://rpc.hyperliquid.xyz/evm"
-plume = "https://phoenix-rpc.plumenetwork.xyz"
-gunz = "https://subnets.avax.network/gunzilla/mainnet/rpc"
-
-[etherscan]
-# Mainnets
-mainnet = { key = "${ETHERSCAN_API_KEY_ETHEREUM}" }
-optimism = { key = "${ETHERSCAN_API_KEY_OPTIMISM}" }
-polygon = { key = "${ETHERSCAN_API_KEY_POLYGON}" }
-gnosis = { key = "${ETHERSCAN_API_KEY_GNOSIS}" }
-linea = { key = "${ETHERSCAN_API_KEY_LINEA}" }
-bsc = { key = "${ETHERSCAN_API_KEY_BSC}" }
-scroll = { key = "${ETHERSCAN_API_KEY_SCROLL}" }
-polygon_zkevm = { key = "${ETHERSCAN_API_KEY_POLYGON_ZKEVM}" }
-zksync = { key = "0x", url = "https://block-explorer-api.mainnet.zksync.io/api" }
-astar_zkevm = { key = "0x", url = "https://astar-zkevm.explorer.startale.com/api" }
-base = { key = "${ETHERSCAN_API_KEY_BASE}" }
-arbitrum = { key = "${ETHERSCAN_API_KEY_ARBITRUM}" }
-arbitrum_nova = { key = "${ETHERSCAN_API_KEY_ARBITRUM_NOVA}" }
-zora = { key = "0x", url = "https://explorer.zora.energy/api" }
-apex = { key = "0x", url = "https://explorer.apex.proofofplay.com/api" }
-blast = { key = "${ETHERSCAN_API_KEY_BLAST}" }
-corn = { key = "0x", chain = 21000000, url = "https://api.routescan.io/v2/network/mainnet/evm/21000000/etherscan" }
-apechain = { key = "${ETHERSCAN_API_KEY_APECHAIN}", chain = 33139, url = "https://api.apescan.io/api" }
-berachain = { key = "${ETHERSCAN_API_KEY_BERA}", chain = 80094, url = "https://api.berascan.com/api" }
-appchain = { key = "0x", chain = 466, url = "https://appchain.calderaexplorer.xyz/api/" }
-echos = { key = "0x", chain = 4321, url = "https://explorer-echos-mainnet-0.t.conduit.xyz/api/" }
-morph = { key = "0x", chain = 2818, url = "https://explorer-api.morphl2.io/api?" }
-
-# Testnets
-sepolia = { key = "${ETHERSCAN_API_KEY_SEPOLIA}" }
-base_sepolia = { key = "${ETHERSCAN_API_KEY_BASE_SEPOLIA}" }
-blast_sepolia = { key = "${ETHERSCAN_API_KEY_BLAST_SEPOLIA}" }
-zora_sepolia = { key = "0x", url = "https://sepolia.explorer.zora.energy/api" }
-barret = { key = "${ETHERSCAN_API_KEY_ARBITRUM}", url = "https://70800.testnet.routescan.io/api" }
-b3_sepolia = { key = "${ETHERSCAN_API_KEY_ARBITRUM}", url = "https://sepolia.explorer.b3.fun/api" }
