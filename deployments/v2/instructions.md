@@ -19,6 +19,8 @@ forge script ./script/RelayRouterV2Deployer.s.sol:RelayRouterV2Deployer \
     --create2-deployer $CREATE2_FACTORY
 ```
 
+Do not forget to add the corresponding deployment information to the `./addresses.json` file! Also, please ensure all deployed contracts are verified!
+
 ### Verification
 
 The above script should do the deployment and verification altogether. However, in cases when the verification failed for some reason, it can be triggered individually via the following commands:
