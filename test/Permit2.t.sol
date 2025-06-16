@@ -29,14 +29,15 @@ interface IERC20Router {
 }
 
 contract Permit2 is Test, BaseRelayTest {
-
     error InvalidTarget(address target);
 
     address router = 0xeeeeee9eC4769A09a76A83C7bC42b185872860eE;
     address permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    string public constant _V1_RELAYER_WITNESS_TYPE_STRING = "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
-    string public constant _V2_RELAYER_WITNESS_TYPE_STRING = "RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
+    string public constant _V1_RELAYER_WITNESS_TYPE_STRING =
+        "RelayerWitness witness)RelayerWitness(address relayer)TokenPermissions(address token,uint256 amount)";
+    string public constant _V2_RELAYER_WITNESS_TYPE_STRING =
+        "RelayerWitness witness)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
         keccak256(
             "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
@@ -78,7 +79,11 @@ contract Permit2 is Test, BaseRelayTest {
         vm.etch(router, address(erc20Router).code);
 
         relayRouter = new RelayRouter();
-        approvalProxy = new ApprovalProxy(address(this), address(relayRouter), permit2);
+        approvalProxy = new ApprovalProxy(
+            address(this),
+            address(relayRouter),
+            permit2
+        );
 
         attacker = makeAddr("attacker");
         vm.deal(attacker, 1 ether);
@@ -87,20 +92,26 @@ contract Permit2 is Test, BaseRelayTest {
     function testFrontrunPermitMulticall__v1() public {
         vm.startPrank(attacker);
 
-        ISignatureTransfer.TokenPermissions[] memory permitted = new ISignatureTransfer.TokenPermissions[](1);
-        permitted[0] = ISignatureTransfer.TokenPermissions({ token: usdc, amount: amount });
-
-        ISignatureTransfer.PermitBatchTransferFrom memory permit = ISignatureTransfer.PermitBatchTransferFrom({
-            permitted: permitted,
-            nonce: nonce,
-            deadline: deadline
+        ISignatureTransfer.TokenPermissions[]
+            memory permitted = new ISignatureTransfer.TokenPermissions[](1);
+        permitted[0] = ISignatureTransfer.TokenPermissions({
+            token: usdc,
+            amount: amount
         });
 
-        ISignatureTransfer.SignatureTransferDetails[] memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](1);
-        signatureTransferDetails[0] = ISignatureTransfer.SignatureTransferDetails({
-            to: router,
-            requestedAmount: amount
-        });
+        ISignatureTransfer.PermitBatchTransferFrom
+            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
+                permitted: permitted,
+                nonce: nonce,
+                deadline: deadline
+            });
+
+        ISignatureTransfer.SignatureTransferDetails[]
+            memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](
+                1
+            );
+        signatureTransferDetails[0] = ISignatureTransfer
+            .SignatureTransferDetails({to: router, requestedAmount: amount});
 
         address[] memory targets = new address[](2);
         targets[0] = permit2;
@@ -124,7 +135,9 @@ contract Permit2 is Test, BaseRelayTest {
 
         uint256[] memory values = new uint256[](2);
 
-        vm.expectRevert(abi.encodeWithSelector(InvalidTarget.selector, permit2));
+        vm.expectRevert(
+            abi.encodeWithSelector(InvalidTarget.selector, permit2)
+        );
         IERC20Router(router).permitMulticall(
             attacker,
             permit,
@@ -136,28 +149,39 @@ contract Permit2 is Test, BaseRelayTest {
         );
 
         vm.stopPrank();
-        console.log("attacker USDC balance: %s", IERC20(usdc).balanceOf(attacker));
+        console.log(
+            "attacker USDC balance: %s",
+            IERC20(usdc).balanceOf(attacker)
+        );
     }
 
     function testFrontrunDelegatecallPermitMulticall__v1() public {
         vm.startPrank(attacker);
 
-        DelegatecallPermit2 delegatecallPermit2 = new DelegatecallPermit2(permit2);
-        
-        ISignatureTransfer.TokenPermissions[] memory permitted = new ISignatureTransfer.TokenPermissions[](1);
-        permitted[0] = ISignatureTransfer.TokenPermissions({ token: usdc, amount: amount });
+        DelegatecallPermit2 delegatecallPermit2 = new DelegatecallPermit2(
+            permit2
+        );
 
-        ISignatureTransfer.PermitBatchTransferFrom memory permit = ISignatureTransfer.PermitBatchTransferFrom({
-            permitted: permitted,
-            nonce: nonce,
-            deadline: deadline
+        ISignatureTransfer.TokenPermissions[]
+            memory permitted = new ISignatureTransfer.TokenPermissions[](1);
+        permitted[0] = ISignatureTransfer.TokenPermissions({
+            token: usdc,
+            amount: amount
         });
 
-        ISignatureTransfer.SignatureTransferDetails[] memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](1);
-        signatureTransferDetails[0] = ISignatureTransfer.SignatureTransferDetails({
-            to: router,
-            requestedAmount: amount
-        });
+        ISignatureTransfer.PermitBatchTransferFrom
+            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
+                permitted: permitted,
+                nonce: nonce,
+                deadline: deadline
+            });
+
+        ISignatureTransfer.SignatureTransferDetails[]
+            memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](
+                1
+            );
+        signatureTransferDetails[0] = ISignatureTransfer
+            .SignatureTransferDetails({to: router, requestedAmount: amount});
 
         address[] memory targets = new address[](2);
         targets[0] = address(delegatecallPermit2);
@@ -180,7 +204,7 @@ contract Permit2 is Test, BaseRelayTest {
         );
 
         uint256[] memory values = new uint256[](2);
-        
+
         vm.expectRevert();
         IERC20Router(router).permitMulticall(
             attacker,
@@ -193,8 +217,11 @@ contract Permit2 is Test, BaseRelayTest {
         );
 
         vm.stopPrank();
-        
-        console.log("attacker USDC balance: %s", IERC20(usdc).balanceOf(attacker));
+
+        console.log(
+            "attacker USDC balance: %s",
+            IERC20(usdc).balanceOf(attacker)
+        );
         assertEq(IERC20(usdc).balanceOf(attacker), 0);
     }
 
@@ -213,11 +240,15 @@ contract Permit2 is Test, BaseRelayTest {
                 nonce: 1,
                 deadline: block.timestamp + 100
             });
-        ISignatureTransfer.SignatureTransferDetails[] memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](1);
-        signatureTransferDetails[0] = ISignatureTransfer.SignatureTransferDetails({
-            to: address(relayRouter),
-            requestedAmount: 1 ether
-        });
+        ISignatureTransfer.SignatureTransferDetails[]
+            memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](
+                1
+            );
+        signatureTransferDetails[0] = ISignatureTransfer
+            .SignatureTransferDetails({
+                to: address(relayRouter),
+                requestedAmount: 1 ether
+            });
 
         // Create calldata to transfer tokens from the router to attacker
         bytes memory calldata1 = abi.encodeWithSelector(
@@ -309,7 +340,10 @@ contract Permit2 is Test, BaseRelayTest {
             bytes("")
         );
 
-        console.log("attacker ERC20 balance: %s", IERC20(address(erc20_1)).balanceOf(attacker));
+        console.log(
+            "attacker ERC20 balance: %s",
+            IERC20(address(erc20_1)).balanceOf(attacker)
+        );
     }
 }
 
@@ -321,6 +355,6 @@ contract DelegatecallPermit2 {
     }
 
     fallback() external {
-        (bool success, bytes memory data) = permit2.delegatecall(msg.data);
+        permit2.delegatecall(msg.data);
     }
 }

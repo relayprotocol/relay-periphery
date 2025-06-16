@@ -9,7 +9,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {ReentrancyGuardMsgSender} from "../v1/ReentrancyGuardMsgSender.sol";
 import {Multicall3} from "./utils/Multicall3.sol";
-import {Call, Call3, Call3Value, Result, RelayerWitness} from "./utils/RelayStructs.sol";
+import {Call3Value, Result, RelayerWitness} from "./utils/RelayStructs.sol";
 
 contract RelayRouter is Multicall3, ReentrancyGuardMsgSender, Tstorish {
     using SafeTransferLib for address;

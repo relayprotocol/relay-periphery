@@ -12,7 +12,6 @@ import {BaseRelayTest} from "./base/BaseRelayTest.sol";
 import {IUniswapV2Router01} from "./interfaces/IUniswapV2Router02.sol";
 import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
 
-
 interface iM {
     function multicall(
         Call3Value[] calldata calls,
@@ -36,30 +35,17 @@ contract ReentrancyTest is Test, BaseRelayTest {
     Attacker attacker3;
     address multicaller;
 
-    function setUp() public override{
+    function setUp() public override {
         super.setUp();
         console.log("SETUP");
         routerV1 = 0xA1BEa5fe917450041748Dbbbe7E9AC57A4bBEBaB;
-        updatedRouterV1 =
-            new ERC20Router(PERMIT2);
+        updatedRouterV1 = new ERC20Router(PERMIT2);
         routerV2 = address(new RelayRouter());
         // Attempt to reenter in ERC20Router
-        attacker1 = new Attacker(
-            address(routerV1),
-            true,
-            false
-        );
+        attacker1 = new Attacker(address(routerV1), true, false);
         // Attempt to reenter in RelayRouter
-        attacker2 = new Attacker(
-            address(routerV2),
-            false,
-            true
-        );
-        attacker3 = new Attacker(
-            address(updatedRouterV1),
-            true,
-            false
-        );
+        attacker2 = new Attacker(address(routerV2), false, true);
+        attacker3 = new Attacker(address(updatedRouterV1), true, false);
     }
 
     function testSuccessUpdatedRouterV1() public {
@@ -111,14 +97,22 @@ contract ReentrancyTest is Test, BaseRelayTest {
         );
 
         vm.prank(relaySolver);
-        updatedRouterV1.delegatecallMulticall{value: 1 ether}(targets, datas, values, alice.addr);
+        updatedRouterV1.delegatecallMulticall{value: 1 ether}(
+            targets,
+            datas,
+            values,
+            alice.addr
+        );
 
         uint256 relaySolverBalanceAfterMulticall = relaySolver.balance;
         uint256 routerUSDCBalanceAfterMulticall = IERC20(USDC).balanceOf(
             address(updatedRouterV1)
         );
 
-        assertEq(relaySolverBalanceBefore - relaySolverBalanceAfterMulticall, 1 ether);
+        assertEq(
+            relaySolverBalanceBefore - relaySolverBalanceAfterMulticall,
+            1 ether
+        );
         assertGt(routerUSDCBalanceAfterMulticall, routerUSDCBalanceBefore);
         assertEq(nft.ownerOf(10), alice.addr);
 
@@ -195,7 +189,8 @@ contract ReentrancyTest is Test, BaseRelayTest {
         uint256 attacker3_initial_balance = address(attacker3).balance;
         uint256 routerV1_initial_balance = routerV1.balance;
         uint256 routerV2_initial_balance = routerV2.balance;
-        uint256 updatedRouterV1_initial_balance = address(updatedRouterV1).balance;
+        uint256 updatedRouterV1_initial_balance = address(updatedRouterV1)
+            .balance;
 
         console.log("ATTACKER1 INITIAL BALANCE", attacker1_initial_balance);
         console.log("ATTACKER2 INITIAL BALANCE", attacker2_initial_balance);
@@ -222,8 +217,16 @@ contract ReentrancyTest is Test, BaseRelayTest {
         }
 
         // Attempt to reenter in ERC20Router
-        vm.expectRevert(abi.encodeWithSelector(InvalidMsgSender.selector, relaySolver, address(attacker3)));
-        (success, ) = address(updatedRouterV1).call{value: relayed_value}(payloadV3);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InvalidMsgSender.selector,
+                relaySolver,
+                address(attacker3)
+            )
+        );
+        (success, ) = address(updatedRouterV1).call{value: relayed_value}(
+            payloadV3
+        );
         if (!success) {
             revert();
         }
@@ -239,7 +242,7 @@ contract ReentrancyTest is Test, BaseRelayTest {
             attacker2_initial_balance;
         uint256 attacker3_profit = attacker3_final_balance -
             attacker3_initial_balance;
-       
+
         uint256 routerV1_difference = routerV1.balance -
             routerV1_initial_balance;
         uint256 routerV2_difference = routerV2.balance -
@@ -279,8 +282,8 @@ contract ReentrancyTest is Test, BaseRelayTest {
 
     //so this contract can list on OpenSea
     function isValidSignature(
-        bytes32 _hash,
-        bytes memory _signature
+        bytes32,
+        bytes memory
     ) public pure returns (bytes4 magicValue) {
         magicValue = this.isValidSignature.selector;
     }

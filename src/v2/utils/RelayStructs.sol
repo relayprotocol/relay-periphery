@@ -1,27 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-struct Call {
-    address target;
-    bytes callData;
-}
-
-struct Call3 {
-    address target;
-    bool allowFailure;
-    bytes callData;
-}
-
 struct Call3Value {
     address target;
     bool allowFailure;
     uint256 value;
     bytes callData;
-}
-
-struct CallRequest {
-    Call3Value[] call3Values;
-    uint256 nonce;
 }
 
 struct Permit {
