@@ -14,7 +14,6 @@ import {Call3Value, Result, RelayerWitness} from "./utils/RelayStructs.sol";
 contract RelayRouter is Multicall3, ReentrancyGuardMsgSender, Tstorish {
     using SafeTransferLib for address;
 
-    // --- Errors --- //
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
 

@@ -350,11 +350,16 @@ contract Permit2 is Test, BaseRelayTest {
 contract DelegatecallPermit2 {
     address permit2;
 
+    error CallFailed();
+
     constructor(address _permit2) {
         permit2 = _permit2;
     }
 
     fallback() external {
-        permit2.delegatecall(msg.data);
+        (bool success, ) = permit2.delegatecall(msg.data);
+        if (!success) {
+            revert CallFailed();
+        }
     }
 }
