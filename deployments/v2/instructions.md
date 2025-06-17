@@ -4,6 +4,7 @@ The v2 contracts deployment script is available in `./script/RelayRouterV2Deploy
 - `CHAIN`: the chain to deploy on (the available options can be found in `./foundry.toml`)
 - `CREATE2_FACTORY`: the addres of the `CREATE2` factory to be used for deterministic deployments - the default factory should be deployed at `0x4e59b44847b379578588920ca78fbf26c0b4956c`, in case it's not available on a given chain we should deploy it there or otherwise use a different factory
 - `PERMIT2`: the address of the `PERMIT2` contract to use for `ApprovalProxy` - the default permit2 should be deployed at `0x000000000022d473030f116ddee9f6b43ac78ba3`, in case it's not available on a given chain we should deploy it there or otherwise use a different permit2
+- `ETHERSCAN_API_KEY`: the API key needed to verify the contracts on Etherscan-powered explorers
 
 ### Deployment
 

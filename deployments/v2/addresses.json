@@ -1,7 +1,7 @@
 [
   {
     "ethereum": {
-      "chainId": 10,
+      "chainId": 1,
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
       "relayRouter": "0x3c8f31b2f4d316c6b905edb5d663eadc7dcc79b6",
@@ -31,8 +31,8 @@
       "chainId": 8453,
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
-      "relayRouter": "0x3c8f31b2f4d316c6b905edb5d663eadc7dcc79b6",
-      "approvalProxy": "0xe2954e240bd72fe0ed39bb48d22b2b4cff55ed47",
+      "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
+      "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
       "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
     },
@@ -40,8 +40,8 @@
       "chainId": 42161,
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
-      "relayRouter": "0x3c8f31b2f4d316c6b905edb5d663eadc7dcc79b6",
-      "approvalProxy": "0xe2954e240bd72fe0ed39bb48d22b2b4cff55ed47",
+      "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
+      "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
       "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
     }
