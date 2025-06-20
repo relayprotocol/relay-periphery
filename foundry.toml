@@ -1,5 +1,5 @@
 [profile.default]
-auto_detect_solc = true
+solc_version = "0.8.28"
 evm_version = "cancun"
 src = "src"
 out = "out"
@@ -7,7 +7,7 @@ libs = ["lib"]
 via_ir = true
 
 [profile.cancun]
-auto_detect_solc = true
+solc_version = "0.8.28"
 evm_version = "cancun"
 src = "src"
 out = "out"
@@ -17,7 +17,7 @@ bytecode_hash = "none"
 cbor_metadata = false
 
 [profile.shanghai]
-auto_detect_solc = true
+solc_version = "0.8.28"
 evm_version = "shanghai"
 src = "src"
 out = "out"
@@ -27,7 +27,7 @@ bytecode_hash = "none"
 cbor_metadata = false
 
 [profile.london]
-solc = "0.8.25"
+solc_version = "0.8.28"
 evm_version = "london"
 src = "src"
 out = "out"
@@ -37,7 +37,7 @@ bytecode_hash = "none"
 cbor_metadata = false
 
 [profile.paris]
-auto_detect_solc = true
+solc_version = "0.8.28"
 evm_version = "paris"
 src = "src"
 out = "out"
