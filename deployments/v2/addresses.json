@@ -113,6 +113,16 @@
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
       "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
     },
+    "zksync": {
+      "chainId": 324,
+      "compilerVersion": "0.8.28",
+      "evmVersion": "cancun",
+      "explorerUrl": "https://era.zksync.network",
+      "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
+      "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
+      "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+    },
     "shape": {
       "chainId": 360,
       "compilerVersion": "0.8.28",
@@ -155,6 +165,17 @@
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
       "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
     },
+    "flow": {
+      "chainId": 747,
+      "compilerVersion": "0.8.28",
+      "evmVersion": "cancun",
+      "explorerUrl": "https://evm.flowscan.io",
+      "customVerificationFlags": "--chain 747 --verifier blockscout --verifier-url https://evm.flowscan.io/api",
+      "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
+      "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
+      "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+    },
     "hyperevm": {
       "chainId": 999,
       "compilerVersion": "0.8.28",
@@ -173,6 +194,16 @@
       "evmVersion": "cancun",
       "explorerUrl": "https://explorer.metis.io",
       "customVerificationFlags": "--chain 1088 --verifier blockscout --verifier-url https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan/api",
+      "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
+      "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
+      "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+    },
+    "polygon_zkevm": {
+      "chainId": 1101,
+      "compilerVersion": "0.8.28",
+      "evmVersion": "cancun",
+      "explorerUrl": "https://zkevm.polygonscan.com",
       "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
       "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
@@ -226,6 +257,7 @@
       "chainId": 1625,
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
+      "additionalNotes": "Verification failed due to the explorer not seeing the address as a contract",
       "explorerUrl": "https://explorer.gravity.xyz",
       "customVerificationFlags": "--chain 1625 --verifier blockscout --verifier-url https://explorer.gravity.xyz/api",
       "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
@@ -248,6 +280,7 @@
       "chainId": 1923,
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
+      "additionalNotes": "Verification failed due to unknown reason",
       "explorerUrl": "https://swellchainscan.io",
       "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
       "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
@@ -260,6 +293,17 @@
       "evmVersion": "cancun",
       "explorerUrl": "https://explorer.sanko.xyz",
       "customVerificationFlags": "--chain 1996 --verifier blockscout --verifier-url https://explorer.sanko.xyz/api",
+      "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
+      "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
+      "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+    },
+    "ronin": {
+      "chainId": 2020,
+      "compilerVersion": "0.8.28",
+      "evmVersion": "cancun",
+      "explorerUrl": "https://app.roninchain.com",
+      "customVerificationFlags": "--chain 2020 --verifier sourcify",
       "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
       "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
@@ -377,8 +421,8 @@
       "chainId": 8333,
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
-      "explorerUrl": "https://explorer.b3.fun",
-      "customVerificationFlags": "--chain 8333 --verifier blockscout --verifier-url https://explorer.b3.fun/api",
+      "explorerUrl": "https://blockscout.b3.fun",
+      "customVerificationFlags": "--chain 8333 --verifier blockscout --verifier-url https://blockscout.b3.fun/api",
       "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
       "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
@@ -419,6 +463,7 @@
       "chainId": 33979,
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
+      "additionalNotes": "Verification failed due to the explorer not seeing the address as a contract",
       "explorerUrl": "https://explorer.funkichain.com",
       "customVerificationFlags": "--chain 33979 --verifier blockscout --verifier-url https://explorer.funkichain.com/api",
       "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
@@ -534,10 +579,11 @@
     "linea": {
       "chainId": 59144,
       "compilerVersion": "0.8.28",
-      "evmVersion": "cancun",
+      "evmVersion": "london",
+      "additionalNotes": "When deploying / compiling, make sure to use the non-tstore version of the script / contracts (RelayRouter_NonTstore)",
       "explorerUrl": "https://lineascan.build",
-      "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
-      "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
+      "relayRouter_nonTstore": "0x113a327221d2c4660684449bfc39bc14ad1aaf38",
+      "approvalProxy": "0xcd740b0e005cb8647f9baf4febedc8753ceef861",
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
       "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
     },
@@ -567,6 +613,7 @@
       "chainId": 70700,
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
+      "additionalNotes": "Verification failed due to the explorer not seeing the address as a contract",
       "explorerUrl": "https://explorer.apex.proofofplay.com",
       "customVerificationFlags": "--chain 70700 --verifier blockscout --verifier-url https://explorer.apex.proofofplay.com/api",
       "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
@@ -578,6 +625,7 @@
       "chainId": 70701,
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
+      "additionalNotes": "Verification failed due to the explorer not seeing the address as a contract",
       "explorerUrl": "https://explorer.boss.proofofplay.com",
       "customVerificationFlags": "--chain 70701 --verifier blockscout --verifier-url https://explorer.boss.proofofplay.com/api",
       "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
@@ -635,6 +683,16 @@
       "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
       "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+    },
+    "zero": {
+      "chainId": 543210,
+      "compilerVersion": "0.8.28",
+      "evmVersion": "london",
+      "additionalNotes": "When deploying / compiling, make sure to use the non-tstore version of the contracts (RelayRouter_NonTstore) - this chain also requires direct deployment via `forge create`",
+      "explorerUrl": "https://lineascan.build",
+      "relayRouter_nonTstore": "0x8fdceeda2951a9747feaf25311435448bce47b2a",
+      "approvalProxy": "0xaec31c3780521c34ca59dc2eb5fb9ee2e285cebe",
+      "permit2": "0x6b4420f66de496d18a6c36367cf7f1440fd9289f"
     },
     "xai": {
       "chainId": 660279,

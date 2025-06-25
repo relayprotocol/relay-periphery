@@ -13,8 +13,6 @@ src = "src"
 out = "out"
 libs = ["lib"]
 via_ir = true
-bytecode_hash = "none"
-cbor_metadata = false
 
 [profile.shanghai]
 solc_version = "0.8.28"
@@ -23,8 +21,6 @@ src = "src"
 out = "out"
 libs = ["lib"]
 via_ir = true
-bytecode_hash = "none"
-cbor_metadata = false
 
 [profile.london]
 solc_version = "0.8.28"
@@ -33,18 +29,6 @@ src = "src"
 out = "out"
 libs = ["lib"]
 via_ir = false
-bytecode_hash = "none"
-cbor_metadata = false
-
-[profile.paris]
-solc_version = "0.8.28"
-evm_version = "paris"
-src = "src"
-out = "out"
-libs = ["lib"]
-via_ir = true
-bytecode_hash = "none"
-cbor_metadata = false
 
 fs_permissions = [{ access = "read", path = "./" }]
 
@@ -71,6 +55,7 @@ redstone = "https://rpc.redstonechain.com/"
 flow = "https://mainnet.evm.nodes.onflow.org"
 hyperevm = "https://rpc.hyperliquid.xyz/evm"
 metis = "https://andromeda.metis.io/?owner=1088"
+polygon_zkevm = "https://zkevm-rpc.com"
 lisk = "https://rpc.api.lisk.com"
 sei = "https://evm-rpc.sei-apis.com"
 perennial = "https://rpc.perennial.foundation"
@@ -79,6 +64,7 @@ gravity = "https://rpc.gravity.xyz"
 soneium = "https://rpc.soneium.org/"
 swellchain = "https://swell-mainnet.alt.technology"
 sanko = "https://mainnet.sanko.xyz"
+ronin = "https://api.roninchain.com/rpc"
 game7 = "https://mainnet-rpc.game7.io/"
 abstract = "https://api.mainnet.abs.xyz"
 morph = "https://rpc.morphl2.io"
