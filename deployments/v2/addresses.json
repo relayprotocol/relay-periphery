@@ -25,8 +25,9 @@
       "compilerVersion": "0.8.28",
       "evmVersion": "cancun",
       "explorerUrl": "https://cronoscan.com/",
-      "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
-      "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
+      "additionalNotes": "When deploying / compiling, make sure to use the non-tstore version of the script / contracts (RelayRouter_NonTstore)",
+      "relayRouter_nonTstore": "0x113a327221d2c4660684449bfc39bc14ad1aaf38",
+      "approvalProxy": "0xcd740b0e005cb8647f9baf4febedc8753ceef861",
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
       "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
     },
@@ -355,8 +356,9 @@
     "mantle": {
       "chainId": 5000,
       "compilerVersion": "0.8.28",
-      "evmVersion": "LONDON",
+      "evmVersion": "london",
       "explorerUrl": "https://explorer.mantle.xyz",
+      "additionalNotes": "When deploying / compiling, make sure to use the non-tstore version of the script / contracts (RelayRouter_NonTstore)",
       "relayRouter_nonTstore": "0x113a327221d2c4660684449bfc39bc14ad1aaf38",
       "approvalProxy": "0xcd740b0e005cb8647f9baf4febedc8753ceef861",
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
