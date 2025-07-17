@@ -76,6 +76,14 @@ approvalProxy.permit2TransferAndMulticall(
 5. If the `calls` result in nfts being sent to the contract, the `nftRecipient` MUST be specified to transfer the tokens to `nftRecipient` in the corresponding `onReceived` hook
 6. Any remaining tokens can be retrieved using cleanup functions on the `RelayRouter`
 
+## Install dependencies
+
+Install all required dependencies using the following command:
+
+```bash
+git submodule update --init --recursive
+```
+
 ## Deployment instructions
 
 See the [deployments](./deployments/instructions.md) section for instructions on how to deploy the relevant contracts.
