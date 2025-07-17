@@ -772,6 +772,17 @@
       "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
       "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
     },
+    "metacade": {
+      "chainId": 845300014,
+      "compilerVersion": "0.8.28",
+      "evmVersion": "cancun",
+      "explorerUrl": "https://metacade-explorer.appchain.base.org",
+      "customVerificationFlags": "--chain 123456789 --verifier blockscout --verifier-url https://metacade-explorer.appchain.base.org/api",
+      "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
+      "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
+      "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+      "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+    },
     "ancient8": {
       "chainId": 888888888,
       "compilerVersion": "0.8.28",

@@ -110,6 +110,7 @@ lordchain = "https://lordchain-rpc.appchain.base.org"
 degen = "https://rpc.degen.tips/FkJa1BMrbHboCvbfrCZJH9U5CHWpr3skv"
 ancient8 = "https://rpc.ancient8.gg/FkJa1BMrbHboCvbfrCZJH9U5CHWpr3skv"
 rari = "https://mainnet.rpc.rarichain.org/http"
+metacade = "https://metacade-rpc.appchain.base.org"
 # Testnets
 amoy = "https://polygon-amoy-bor-rpc.publicnode.com"
 holesky = "https://ethereum-holesky.publicnode.com"
