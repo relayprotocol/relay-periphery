@@ -78,7 +78,7 @@ approvalProxy.permit2TransferAndMulticall(
 
 ## Deployment instructions
 
-See the [./deployments/instructions.md](deployment) section for instructions on how to deploy the relevant contracts.
+See the [deployments](./deployments/instructions.md) section for instructions on how to deploy the relevant contracts.
 
 ### Build
 
