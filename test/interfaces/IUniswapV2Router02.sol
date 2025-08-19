@@ -7,22 +7,22 @@ interface IUniswapV2Router02 is IUniswapV2Router01 {
         address token,
         uint liquidity,
         uint amountTokenMin,
-        uint amountETHMin,
+        uint amountEthMin,
         address to,
         uint deadline
-    ) external returns (uint amountETH);
+    ) external returns (uint amountEth);
     function removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(
         address token,
         uint liquidity,
         uint amountTokenMin,
-        uint amountETHMin,
+        uint amountEthMin,
         address to,
         uint deadline,
         bool approveMax,
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external returns (uint amountETH);
+    ) external returns (uint amountEth);
 
     function swapExactTokensForTokensSupportingFeeOnTransferTokens(
         uint amountIn,

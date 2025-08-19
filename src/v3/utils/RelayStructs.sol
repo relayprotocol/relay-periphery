@@ -19,6 +19,16 @@ struct Permit {
     bytes32 s;
 }
 
+struct Permit3009 {
+    address from;
+    uint256 value;
+    uint256 validAfter;
+    uint256 validBefore;
+    uint8 v;
+    bytes32 r;
+    bytes32 s;
+}
+
 struct Result {
     bool success;
     bytes returnData;

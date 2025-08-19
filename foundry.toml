@@ -5,22 +5,9 @@ src = "src"
 out = "out"
 libs = ["lib"]
 via_ir = true
-
-[profile.cancun]
-solc_version = "0.8.28"
-evm_version = "cancun"
-src = "src"
-out = "out"
-libs = ["lib"]
-via_ir = true
-
-[profile.shanghai]
-solc_version = "0.8.28"
-evm_version = "shanghai"
-src = "src"
-out = "out"
-libs = ["lib"]
-via_ir = true
+optimizer = true
+bytecode_hash = "none"
+cbor_metadata = false
 
 [profile.london]
 solc_version = "0.8.28"
@@ -29,6 +16,12 @@ src = "src"
 out = "out"
 libs = ["lib"]
 via_ir = false
+optimizer = true
+bytecode_hash = "none"
+cbor_metadata = false
+
+[lint]
+exclude_lints = ["mixed-case-function", "mixed-case-variable", "asm-keccak256"]
 
 fs_permissions = [{ access = "read", path = "./" }]
 

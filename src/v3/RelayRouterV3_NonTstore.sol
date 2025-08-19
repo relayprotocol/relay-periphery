@@ -2,14 +2,16 @@
 pragma solidity ^0.8.25;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
+
 import {Multicall3} from "./utils/Multicall3.sol";
+import {ReentrancyGuardMsgSender_NonTstore} from "./utils/ReentrancyGuardMsgSender_NonTstore.sol";
 import {Call3Value, Result, RelayerWitness} from "./utils/RelayStructs.sol";
 
-contract RelayRouter_NonTstore is Multicall3 {
+contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTstore {
     using SafeTransferLib for address;
 
     /// @notice Revert if this contract is set as the recipient
@@ -45,15 +47,15 @@ contract RelayRouter_NonTstore is Multicall3 {
     /// @notice Execute a multicall with the RelayRouter as msg.sender.
     /// @dev    If a multicall is expecting to mint ERC721s or ERC1155s, the recipient must be explicitly set
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in recipient
-    ///         Be sure to transfer ERC20s or ETH out of the router as part of the multicall
+    ///         Be sure to transfer ERC20s or native tokens out of the router as part of the multicall
     /// @param calls The calls to perform
-    /// @param refundTo The address to refund any leftover ETH to
+    /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     function multicall(
         Call3Value[] calldata calls,
         address refundTo,
         address nftRecipient
-    ) public payable virtual returns (Result[] memory returnData) {
+    ) public payable virtual nonReentrant returns (Result[] memory returnData) {
         // Set the NFT recipient if provided
         if (nftRecipient != address(0)) {
             _setRecipient(nftRecipient);
@@ -65,16 +67,8 @@ contract RelayRouter_NonTstore is Multicall3 {
         // Clear the recipient in storage
         _clearRecipient();
 
-        // Refund any leftover ETH to the sender
-        if (address(this).balance > 0) {
-            // If refundTo is address(0), refund to msg.sender
-            address refundAddr = refundTo == address(0) ? msg.sender : refundTo;
-
-            uint256 amount = address(this).balance;
-            refundAddr.safeTransferETH(amount);
-
-            emit SolverNativeTransfer(refundAddr, amount);
-        }
+        // Refund any leftover native tokens to the sender
+        cleanupNative(0, refundTo);
     }
 
     /// @notice Send leftover ERC20 tokens to recipients
@@ -105,8 +99,10 @@ contract RelayRouter_NonTstore is Multicall3 {
                 ? IERC20(token).balanceOf(address(this))
                 : amounts[i];
 
-            // Transfer the token to the recipient address
-            token.safeTransfer(recipient, amount);
+            if (amount > 0) {
+                // Transfer the token to the recipient address
+                token.safeTransfer(recipient, amount);
+            }
         }
     }
 
@@ -142,13 +138,15 @@ contract RelayRouter_NonTstore is Multicall3 {
                 ? IERC20(token).balanceOf(address(this))
                 : amounts[i];
 
-            // First approve the target address for the call
-            IERC20(token).approve(to, amount);
+            if (amount > 0) {
+                // First approve the target address for the call
+                IERC20(token).approve(to, amount);
 
-            // Make the call
-            (bool success, ) = to.call(data);
-            if (!success) {
-                revert CallFailed();
+                // Make the call
+                (bool success, ) = to.call(data);
+                if (!success) {
+                    revert CallFailed();
+                }
             }
         }
     }
@@ -164,9 +162,11 @@ contract RelayRouter_NonTstore is Multicall3 {
             : recipient;
 
         uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
-        recipientAddr.safeTransferETH(amountToTransfer);
 
-        emit SolverNativeTransfer(recipientAddr, amountToTransfer);
+        if (amountToTransfer > 0) {
+            recipientAddr.safeTransferETH(amountToTransfer);
+            emit SolverNativeTransfer(recipientAddr, amountToTransfer);
+        }
     }
 
     /// @notice Send leftover native tokens via an explicit method call
@@ -179,11 +179,13 @@ contract RelayRouter_NonTstore is Multicall3 {
         address to,
         bytes calldata data
     ) public virtual {
-        (bool success, ) = to.call{
-            value: amount == 0 ? address(this).balance : amount
-        }(data);
-        if (!success) {
-            revert CallFailed();
+        uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
+        
+        if (amountToTransfer > 0) {
+            (bool success, ) = to.call{value: amountToTransfer}(data);
+            if (!success) {
+                revert CallFailed();
+            }
         }
     }
 

@@ -37,33 +37,14 @@ contract Multicall3 {
                 calli.callData
             );
 
-            assembly {
-                // Revert if the call fails and failure is not allowed
-                // `allowFailure := calldataload(add(calli, 0x20))` and `success := mload(result)`
-                if iszero(or(calldataload(add(calli, 0x20)), mload(result))) {
-                    // Set "Error(string)" signature: bytes32(bytes4(keccak256("Error(string)")))
-                    mstore(
-                        0x00,
-                        0x08c379a000000000000000000000000000000000000000000000000000000000
-                    )
-                    // set data offset
-                    mstore(
-                        0x04,
-                        0x0000000000000000000000000000000000000000000000000000000000000020
-                    )
-                    // Set length of revert string
-                    mstore(
-                        0x24,
-                        0x0000000000000000000000000000000000000000000000000000000000000017
-                    )
-                    // Set revert string: bytes32(abi.encodePacked("Multicall3: call failed"))
-                    mstore(
-                        0x44,
-                        0x4d756c746963616c6c333a2063616c6c206661696c6564000000000000000000
-                    )
-                    revert(0x00, 0x84)
+            // Make sure to bubble-up any reverts
+            if (!calli.allowFailure && !result.success) {
+                bytes memory revertData = result.returnData;
+                assembly {
+                    revert(add(revertData, 32), mload(revertData))
                 }
             }
+
 
             if (result.success) {
                 emit SolverCallExecuted(
