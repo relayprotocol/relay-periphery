@@ -1,4 +1,4 @@
-IMPORTANT! Make sure you're on commit 9332d10b!
+IMPORTANT! Make sure you're on commit [`e6b9b5e9`](https://github.com/relayprotocol/relay-periphery/tree/e6b9b5e9)!
 
 There is a single deployment script that needs to be triggered for every new chain:
 

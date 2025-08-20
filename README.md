@@ -1,6 +1,6 @@
 # Relay periphery contracts
 
-## Install dependencies
+### Install dependencies
 
 Install all required dependencies using the following command:
 
@@ -8,7 +8,7 @@ Install all required dependencies using the following command:
 git submodule update --init --recursive
 ```
 
-## Deployment instructions
+### Deployment instructions
 
 See the [deployments](./deployments/index.md) section for instructions on how to deploy the relevant contracts.
 
