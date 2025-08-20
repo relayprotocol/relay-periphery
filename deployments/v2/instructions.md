@@ -1,3 +1,5 @@
+IMPORTANT! Make sure you're on commit 7cea29ad!
+
 There are two deployment scripts that need to be triggered for every new chain:
 
 - v1: `./script/RelayReceiverV1Deployer.s.sol` (legacy contract that we still want to maintain)

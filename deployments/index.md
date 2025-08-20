@@ -1,6 +1,6 @@
 ### Deployment overview
 
-We have a few different versions of the periphery contracts, each of these should be deployed from a different commit:
+We have a few different versions of the periphery contracts, each of these should be deployed from a different commit and according to different instructions, as follows:
 
-- `v2`: 7cea29ad
-- `v2.1`: 00000000
+- [`v2`](./v2/instructions.md)
+- [`v2.1`](./v2.1/instructions.md)
