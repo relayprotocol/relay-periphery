@@ -12,9 +12,9 @@ import {IAllowanceHolder} from "0x-settler/src/allowanceholder/IAllowanceHolder.
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {EIP712} from "solady/src/utils/EIP712.sol";
 
-import {RelayApprovalProxyV2_1} from "../../src/v3/RelayApprovalProxyV2_1.sol";
-import {RelayRouterV2_1} from "../../src/v3/RelayRouterV2_1.sol";
-import {Call3Value, Permit2612, Permit3009} from "../../src/v3/utils/RelayStructs.sol";
+import {RelayApprovalProxyV2_1} from "../../src/v2.1/RelayApprovalProxyV2_1.sol";
+import {RelayRouterV2_1} from "../../src/v2.1/RelayRouterV2_1.sol";
+import {Call3Value, Permit2612, Permit3009} from "../../src/v2.1/utils/RelayStructs.sol";
 
 import {BaseTest, RelayerWitness} from "../base/BaseTest.sol";
 import {IUniswapV2Router01} from "../interfaces/IUniswapV2Router02.sol";
