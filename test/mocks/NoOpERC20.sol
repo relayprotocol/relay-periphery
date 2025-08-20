@@ -15,11 +15,7 @@ contract NoOpERC20 is ERC20("Test20", "TST20") {
         return true;
     }
 
-    function transferFrom(
-        address /*from*/,
-        address /*to*/,
-        uint256 /*value*/
-    ) public pure override returns (bool) {
+    function transferFrom(address, /*from*/ address, /*to*/ uint256 /*value*/ ) public pure override returns (bool) {
         return true;
     }
 }

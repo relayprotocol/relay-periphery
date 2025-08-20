@@ -6,10 +6,7 @@ import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20P
 
 // Used for minting test ERC20s in our tests
 contract TestERC20Permit is ERC20Permit {
-    constructor(
-        string memory name,
-        string memory symbol
-    ) ERC20(name, symbol) ERC20Permit(name) {}
+    constructor() ERC20("Test20", "TST20") ERC20Permit("Test20") {}
 
     function mint(address to, uint256 amount) external returns (bool) {
         _mint(to, amount);

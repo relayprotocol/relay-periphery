@@ -14,10 +14,7 @@ contract TestERC721_ERC20PaymentToken is ERC721 {
     }
 
     function mint(address to, uint256 tokenId) public returns (bool) {
-        require(
-            paymentToken.transferFrom(msg.sender, address(this), MINT_PRICE),
-            "Payment failed"
-        );
+        require(paymentToken.transferFrom(msg.sender, address(this), MINT_PRICE), "Payment failed");
         _mint(to, tokenId);
         return true;
     }
