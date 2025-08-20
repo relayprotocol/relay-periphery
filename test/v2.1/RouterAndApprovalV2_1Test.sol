@@ -14,7 +14,7 @@ import {EIP712} from "solady/src/utils/EIP712.sol";
 
 import {RelayApprovalProxyV2_1} from "../../src/v2.1/RelayApprovalProxyV2_1.sol";
 import {RelayRouterV2_1} from "../../src/v2.1/RelayRouterV2_1.sol";
-import {Call3Value, Permit2612, Permit3009} from "../../src/v2.1/utils/RelayStructs.sol";
+import {Call3Value, Permit2612, Permit3009} from "../../src/v2.1/utils/RelayV2_1Structs.sol";
 
 import {BaseTest, RelayerWitness} from "../base/BaseTest.sol";
 import {IUniswapV2Router01} from "../interfaces/IUniswapV2Router02.sol";

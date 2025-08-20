@@ -12,7 +12,7 @@ import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 
 import {IERC3009} from "./interfaces/IERC3009.sol";
 import {IRelayRouterV2_1} from "./interfaces/IRelayRouterV2_1.sol";
-import {Call3Value, Permit2612, Permit3009, Result} from "./utils/RelayStructs.sol";
+import {Call3Value, Permit2612, Permit3009, Result} from "./utils/RelayV2_1Structs.sol";
 
 contract RelayApprovalProxyV2_1 is Ownable {
     using SafeERC20 for IERC20;

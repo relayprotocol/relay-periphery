@@ -9,7 +9,7 @@ import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 
 import {Multicall3} from "./utils/Multicall3.sol";
 import {ReentrancyGuardMsgSender} from "./utils/ReentrancyGuardMsgSender.sol";
-import {Call3Value, Result, RelayerWitness} from "./utils/RelayStructs.sol";
+import {Call3Value, Result, RelayerWitness} from "./utils/RelayV2_1Structs.sol";
 
 contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
     using SafeTransferLib for address;
