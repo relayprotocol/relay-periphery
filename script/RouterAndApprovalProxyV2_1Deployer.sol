@@ -4,8 +4,8 @@ pragma solidity ^0.8.23;
 import "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 
-import {RelayApprovalProxyV2_1} from "../src/v3/RelayApprovalProxyV2_1.sol";
-import {RelayRouterV2_1} from "../src/v3/RelayRouterV2_1.sol";
+import {RelayApprovalProxyV2_1} from "../src/v2.1/RelayApprovalProxyV2_1.sol";
+import {RelayRouterV2_1} from "../src/v2.1/RelayRouterV2_1.sol";
 
 contract RouterAndApprovalProxyV2_1Deployer is Script {
     // Thrown when the predicted address doesn't match the deployed address
