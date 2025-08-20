@@ -72,10 +72,7 @@ contract BaseTest is Test {
 
     // Utility methods
 
-    function makeAccountAndDeal(
-        string memory name,
-        uint256 amount
-    ) internal returns (Account memory) {
+    function makeAccountAndDeal(string memory name, uint256 amount) internal returns (Account memory) {
         (address addr, uint256 pk) = makeAddrAndKey(name);
 
         vm.deal(addr, amount);
@@ -91,16 +88,10 @@ contract BaseTest is Test {
         bytes32 typeHash,
         bytes32 domainSeparator
     ) internal pure returns (bytes memory signature) {
-        bytes32[] memory tokenPermissions = new bytes32[](
-            permit.permitted.length
-        );
+        bytes32[] memory tokenPermissions = new bytes32[](permit.permitted.length);
         for (uint256 i = 0; i < permit.permitted.length; ++i) {
-            tokenPermissions[i] = keccak256(
-                bytes.concat(
-                    _PERMIT2_TOKEN_PERMISSIONS_TYPEHASH,
-                    abi.encode(permit.permitted[i])
-                )
-            );
+            tokenPermissions[i] =
+                keccak256(bytes.concat(_PERMIT2_TOKEN_PERMISSIONS_TYPEHASH, abi.encode(permit.permitted[i])));
         }
 
         bytes32 hashToSign = keccak256(
@@ -109,11 +100,7 @@ contract BaseTest is Test {
                 domainSeparator,
                 keccak256(
                     abi.encode(
-                        typeHash,
-                        keccak256(abi.encodePacked(tokenPermissions)),
-                        spender,
-                        permit.nonce,
-                        permit.deadline
+                        typeHash, keccak256(abi.encodePacked(tokenPermissions)), spender, permit.nonce, permit.deadline
                     )
                 )
             )
@@ -132,24 +119,13 @@ contract BaseTest is Test {
         bytes32 witness,
         bytes32 domainSeparator
     ) internal pure returns (bytes memory signature) {
-        bytes32 tokenPermissions = keccak256(
-            abi.encode(_PERMIT2_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted)
-        );
+        bytes32 tokenPermissions = keccak256(abi.encode(_PERMIT2_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted));
 
         bytes32 hashToSign = keccak256(
             abi.encodePacked(
                 "\x19\x01",
                 domainSeparator,
-                keccak256(
-                    abi.encode(
-                        typeHash,
-                        tokenPermissions,
-                        spender,
-                        permit.nonce,
-                        permit.deadline,
-                        witness
-                    )
-                )
+                keccak256(abi.encode(typeHash, tokenPermissions, spender, permit.nonce, permit.deadline, witness))
             )
         );
 
@@ -166,13 +142,9 @@ contract BaseTest is Test {
         bytes32 witness,
         bytes32 domainSeparator
     ) internal pure returns (bytes memory signature) {
-        bytes32[] memory tokenPermissions = new bytes32[](
-            permit.permitted.length
-        );
+        bytes32[] memory tokenPermissions = new bytes32[](permit.permitted.length);
         for (uint256 i = 0; i < permit.permitted.length; ++i) {
-            tokenPermissions[i] = keccak256(
-                abi.encode(_PERMIT2_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted[i])
-            );
+            tokenPermissions[i] = keccak256(abi.encode(_PERMIT2_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted[i]));
         }
 
         bytes32 hashToSign = keccak256(

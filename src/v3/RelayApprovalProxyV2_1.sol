@@ -11,10 +11,10 @@ import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 
 import {IERC3009} from "./interfaces/IERC3009.sol";
-import {IRelayRouterV3} from "./interfaces/IRelayRouterV3.sol";
+import {IRelayRouterV2_1} from "./interfaces/IRelayRouterV2_1.sol";
 import {Call3Value, Permit2612, Permit3009, Result} from "./utils/RelayStructs.sol";
 
-contract RelayApprovalProxyV3 is Ownable {
+contract RelayApprovalProxyV2_1 is Ownable {
     using SafeERC20 for IERC20;
     using SignatureCheckerLib for address;
     using TrustlessPermit for address;
@@ -41,15 +41,12 @@ contract RelayApprovalProxyV3 is Ownable {
     IPermit2 private PERMIT2;
 
     bytes32 public constant _CALL3VALUE_TYPEHASH =
-        keccak256(
-            "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
-        );
+        keccak256("Call3Value(address target,bool allowFailure,uint256 value,bytes callData)");
     string public constant _RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
-    bytes32 public constant _RELAYER_WITNESS_TYPEHASH =
-        keccak256(
-            "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
-        );
+    bytes32 public constant _RELAYER_WITNESS_TYPEHASH = keccak256(
+        "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+    );
 
     receive() external payable {}
 
@@ -113,11 +110,7 @@ contract RelayApprovalProxyV3 is Ownable {
 
         // Call multicall on the router
         // @dev msg.sender for the calls to targets will be the router
-        returnData = IRelayRouterV3(router).multicall{value: msg.value}(
-            calls,
-            refundTo,
-            nftRecipient
-        );
+        returnData = IRelayRouterV2_1(router).multicall{value: msg.value}(calls, refundTo, nftRecipient);
     }
 
     /// @notice Use ERC2612 permit to transfer tokens to RelayRouter and execute multicall in a single tx
@@ -151,29 +144,15 @@ contract RelayApprovalProxyV3 is Ownable {
             // Use the permit. Calling `trustlessPermit` allows tx to
             // continue even if permit gets frontrun
             permit.token.trustlessPermit(
-                permit.owner,
-                address(this),
-                permit.value,
-                permit.deadline,
-                permit.v,
-                permit.r,
-                permit.s
+                permit.owner, address(this), permit.value, permit.deadline, permit.v, permit.r, permit.s
             );
 
             // Transfer the tokens to the router
-            IERC20(permit.token).safeTransferFrom(
-                permit.owner,
-                router,
-                permit.value
-            );
+            IERC20(permit.token).safeTransferFrom(permit.owner, router, permit.value);
         }
 
         // Call multicall on the router
-        returnData = IRelayRouterV3(router).multicall{value: msg.value}(
-            calls,
-            refundTo,
-            nftRecipient
-        );
+        returnData = IRelayRouterV2_1(router).multicall{value: msg.value}(calls, refundTo, nftRecipient);
     }
 
     /// @notice Use Permit2 to transfer tokens to RelayRouter and perform an arbitrary multicall.
@@ -202,22 +181,11 @@ contract RelayApprovalProxyV3 is Ownable {
 
         // If a permit signature is provided, use it to transfer tokens from user to router
         if (permitSignature.length != 0) {
-            _handleBatchPermit(
-                user,
-                refundTo,
-                nftRecipient,
-                permit,
-                calls,
-                permitSignature
-            );
+            _handleBatchPermit(user, refundTo, nftRecipient, permit, calls, permitSignature);
         }
 
         // Call multicall on the router
-        returnData = IRelayRouterV3(router).multicall{value: msg.value}(
-            calls,
-            refundTo,
-            nftRecipient
-        );
+        returnData = IRelayRouterV2_1(router).multicall{value: msg.value}(calls, refundTo, nftRecipient);
     }
 
     /// @notice Use ERC3009 permit to transfer tokens to RelayRouter and execute multicall in a single tx
@@ -263,18 +231,11 @@ contract RelayApprovalProxyV3 is Ownable {
             );
 
             // Transfer the tokens to the router
-            IERC20(tokens[i]).safeTransfer(
-                router,
-                permit.value
-            );
+            IERC20(tokens[i]).safeTransfer(router, permit.value);
         }
 
         // Call multicall on the router
-        returnData = IRelayRouterV3(router).multicall{value: msg.value}(
-            calls,
-            refundTo,
-            nftRecipient
-        );
+        returnData = IRelayRouterV2_1(router).multicall{value: msg.value}(calls, refundTo, nftRecipient);
     }
 
     /// @notice Internal function to get the hash of a list of `Call3Value` structs
@@ -297,21 +258,18 @@ contract RelayApprovalProxyV3 is Ownable {
 
         return keccak256(abi.encodePacked(callHashes));
     }
-    
+
     /// @notice Internal function to get the hash of a relayer witness
     /// @param refundTo The refundTo address
     /// @param nftRecipient The nftRecipient address
     /// @param calls The calls to be executed
-    function _getRelayerWitnessHash(address refundTo, address nftRecipient, Call3Value[] memory calls) internal view returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                _RELAYER_WITNESS_TYPEHASH,
-                msg.sender,
-                refundTo,
-                nftRecipient,
-                _getCallsHash(calls)
-            )
-        );
+    function _getRelayerWitnessHash(address refundTo, address nftRecipient, Call3Value[] memory calls)
+        internal
+        view
+        returns (bytes32)
+    {
+        return
+            keccak256(abi.encode(_RELAYER_WITNESS_TYPEHASH, msg.sender, refundTo, nftRecipient, _getCallsHash(calls)));
     }
 
     /// @notice Internal function to handle a permit batch transfer
@@ -332,18 +290,13 @@ contract RelayApprovalProxyV3 is Ownable {
         bytes32 witness = _getRelayerWitnessHash(refundTo, nftRecipient, calls);
 
         // Create the SignatureTransferDetails array
-        ISignatureTransfer.SignatureTransferDetails[]
-            memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](
-                permit.permitted.length
-            );
+        ISignatureTransfer.SignatureTransferDetails[] memory signatureTransferDetails =
+            new ISignatureTransfer.SignatureTransferDetails[](permit.permitted.length);
         for (uint256 i = 0; i < permit.permitted.length; i++) {
             uint256 amount = permit.permitted[i].amount;
 
-            signatureTransferDetails[i] = ISignatureTransfer
-                .SignatureTransferDetails({
-                    to: address(router),
-                    requestedAmount: amount
-                });
+            signatureTransferDetails[i] =
+                ISignatureTransfer.SignatureTransferDetails({to: address(router), requestedAmount: amount});
         }
 
         // Use the SignatureTransferDetails and permit signature to transfer tokens to the router

@@ -33,11 +33,7 @@ abstract contract ReentrancyGuardMsgSender_NonTstore {
 
         // Revert if sender slot has been set and is not the same as the caller
         // Allow contract to reenter itself
-        if (
-            storedSender != address(0) &&
-            storedSender != sender &&
-            sender != address(this)
-        ) {
+        if (storedSender != address(0) && storedSender != sender && sender != address(this)) {
             revert InvalidMsgSender(storedSender, sender);
         }
 

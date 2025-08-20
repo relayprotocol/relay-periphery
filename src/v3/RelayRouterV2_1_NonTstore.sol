@@ -11,7 +11,7 @@ import {Multicall3} from "./utils/Multicall3.sol";
 import {ReentrancyGuardMsgSender_NonTstore} from "./utils/ReentrancyGuardMsgSender_NonTstore.sol";
 import {Call3Value, Result, RelayerWitness} from "./utils/RelayStructs.sol";
 
-contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTstore {
+contract RelayRouterV2_1_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTstore {
     using SafeTransferLib for address;
 
     /// @notice Revert if this contract is set as the recipient
@@ -35,8 +35,7 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
     /// @notice Protocol event to be emitted when transferring native tokens
     event SolverNativeTransfer(address to, uint256 amount);
 
-    uint256 RECIPIENT_STORAGE_SLOT =
-        uint256(keccak256("RelayRouter.recipient")) - 1;
+    uint256 RECIPIENT_STORAGE_SLOT = uint256(keccak256("RelayRouter.recipient")) - 1;
 
     constructor() {}
 
@@ -51,11 +50,13 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
     /// @param calls The calls to perform
     /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
-    function multicall(
-        Call3Value[] calldata calls,
-        address refundTo,
-        address nftRecipient
-    ) public payable virtual nonReentrant returns (Result[] memory returnData) {
+    function multicall(Call3Value[] calldata calls, address refundTo, address nftRecipient)
+        public
+        payable
+        virtual
+        nonReentrant
+        returns (Result[] memory returnData)
+    {
         // Set the NFT recipient if provided
         if (nftRecipient != address(0)) {
             _setRecipient(nftRecipient);
@@ -77,16 +78,12 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
     /// @param tokens The addresses of the ERC20 tokens
     /// @param recipients The addresses to refund the tokens to
     /// @param amounts The amounts to send
-    function cleanupErc20s(
-        address[] calldata tokens,
-        address[] calldata recipients,
-        uint256[] calldata amounts
-    ) public virtual {
+    function cleanupErc20s(address[] calldata tokens, address[] calldata recipients, uint256[] calldata amounts)
+        public
+        virtual
+    {
         // Revert if array lengths do not match
-        if (
-            tokens.length != amounts.length ||
-            amounts.length != recipients.length
-        ) {
+        if (tokens.length != amounts.length || amounts.length != recipients.length) {
             revert ArrayLengthsMismatch();
         }
 
@@ -95,9 +92,7 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
             address recipient = recipients[i];
 
             // Get the amount to transfer
-            uint256 amount = amounts[i] == 0
-                ? IERC20(token).balanceOf(address(this))
-                : amounts[i];
+            uint256 amount = amounts[i] == 0 ? IERC20(token).balanceOf(address(this)) : amounts[i];
 
             if (amount > 0) {
                 // Transfer the token to the recipient address
@@ -120,11 +115,7 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
         uint256[] calldata amounts
     ) public virtual {
         // Revert if array lengths do not match
-        if (
-            tokens.length != amounts.length ||
-            amounts.length != tos.length ||
-            tos.length != datas.length
-        ) {
+        if (tokens.length != amounts.length || amounts.length != tos.length || tos.length != datas.length) {
             revert ArrayLengthsMismatch();
         }
 
@@ -134,16 +125,14 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
             bytes calldata data = datas[i];
 
             // Get the amount to transfer
-            uint256 amount = amounts[i] == 0
-                ? IERC20(token).balanceOf(address(this))
-                : amounts[i];
+            uint256 amount = amounts[i] == 0 ? IERC20(token).balanceOf(address(this)) : amounts[i];
 
             if (amount > 0) {
                 // First approve the target address for the call
                 IERC20(token).approve(to, amount);
 
                 // Make the call
-                (bool success, ) = to.call(data);
+                (bool success,) = to.call(data);
                 if (!success) {
                     revert CallFailed();
                 }
@@ -157,9 +146,7 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
     /// @param recipient The recipient address
     function cleanupNative(uint256 amount, address recipient) public virtual {
         // If recipient is address(0), set to msg.sender
-        address recipientAddr = recipient == address(0)
-            ? msg.sender
-            : recipient;
+        address recipientAddr = recipient == address(0) ? msg.sender : recipient;
 
         uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
 
@@ -174,15 +161,11 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
     /// @param amount The amount of native tokens to transfer
     /// @param to The target address of the call
     /// @param data The data for the call
-    function cleanupNativeViaCall(
-        uint256 amount,
-        address to,
-        bytes calldata data
-    ) public virtual {
+    function cleanupNativeViaCall(uint256 amount, address to, bytes calldata data) public virtual {
         uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
-        
+
         if (amountToTransfer > 0) {
-            (bool success, ) = to.call{value: amountToTransfer}(data);
+            (bool success,) = to.call{value: amountToTransfer}(data);
             if (!success) {
                 revert CallFailed();
             }
@@ -234,12 +217,10 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
         }
     }
 
-    function onERC721Received(
-        address /*_operator*/,
-        address /*_from*/,
-        uint256 _tokenId,
-        bytes calldata _data
-    ) external returns (bytes4) {
+    function onERC721Received(address, /*_operator*/ address, /*_from*/ uint256 _tokenId, bytes calldata _data)
+        external
+        returns (bytes4)
+    {
         // Get the recipient from storage
         address recipient = _getRecipient();
 
@@ -251,19 +232,14 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
         }
 
         // Transfer the NFT to the recipient
-        IERC721(msg.sender).safeTransferFrom(
-            address(this),
-            recipient,
-            _tokenId,
-            _data
-        );
+        IERC721(msg.sender).safeTransferFrom(address(this), recipient, _tokenId, _data);
 
         return this.onERC721Received.selector;
     }
 
     function onERC1155Received(
-        address /*_operator*/,
-        address /*_from*/,
+        address, /*_operator*/
+        address, /*_from*/
         uint256 _id,
         uint256 _value,
         bytes calldata _data
@@ -279,20 +255,14 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
         }
 
         // Transfer the tokens to the recipient
-        IERC1155(msg.sender).safeTransferFrom(
-            address(this),
-            recipient,
-            _id,
-            _value,
-            _data
-        );
+        IERC1155(msg.sender).safeTransferFrom(address(this), recipient, _id, _value, _data);
 
         return this.onERC1155Received.selector;
     }
 
     function onERC1155BatchReceived(
-        address /*_operator*/,
-        address /*_from*/,
+        address, /*_operator*/
+        address, /*_from*/
         uint256[] calldata _ids,
         uint256[] calldata _values,
         bytes calldata _data
@@ -308,13 +278,7 @@ contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTsto
         }
 
         // Transfer the tokens to the recipient
-        IERC1155(msg.sender).safeBatchTransferFrom(
-            address(this),
-            recipient,
-            _ids,
-            _values,
-            _data
-        );
+        IERC1155(msg.sender).safeBatchTransferFrom(address(this), recipient, _ids, _values, _data);
 
         return this.onERC1155BatchReceived.selector;
     }

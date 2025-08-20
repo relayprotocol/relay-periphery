@@ -21,21 +21,17 @@ contract Multicall3 {
     /// @notice Aggregate calls
     /// @param calls An array of Call3Value structs
     /// @return returnData An array of Result structs
-    function _aggregate3Value(
-        Call3Value[] calldata calls
-    ) internal returns (Result[] memory returnData) {
+    function _aggregate3Value(Call3Value[] calldata calls) internal returns (Result[] memory returnData) {
         uint256 length = calls.length;
         returnData = new Result[](length);
         Call3Value calldata calli;
 
-        for (uint256 i = 0; i < length; ) {
+        for (uint256 i = 0; i < length;) {
             Result memory result = returnData[i];
             calli = calls[i];
 
             uint256 val = calli.value;
-            (result.success, result.returnData) = calli.target.call{value: val}(
-                calli.callData
-            );
+            (result.success, result.returnData) = calli.target.call{value: val}(calli.callData);
 
             // Make sure to bubble-up any reverts
             if (!calli.allowFailure && !result.success) {
@@ -45,13 +41,8 @@ contract Multicall3 {
                 }
             }
 
-
             if (result.success) {
-                emit SolverCallExecuted(
-                    calli.target,
-                    calli.callData,
-                    calli.value
-                );
+                emit SolverCallExecuted(calli.target, calli.callData, calli.value);
             }
 
             unchecked {

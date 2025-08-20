@@ -12,8 +12,8 @@ import {IAllowanceHolder} from "0x-settler/src/allowanceholder/IAllowanceHolder.
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {EIP712} from "solady/src/utils/EIP712.sol";
 
-import {RelayApprovalProxyV3} from "../../src/v3/RelayApprovalProxyV3.sol";
-import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
+import {RelayApprovalProxyV2_1} from "../../src/v3/RelayApprovalProxyV2_1.sol";
+import {RelayRouterV2_1} from "../../src/v3/RelayRouterV2_1.sol";
 import {Call3Value, Permit2612, Permit3009} from "../../src/v3/utils/RelayStructs.sol";
 
 import {BaseTest, RelayerWitness} from "../base/BaseTest.sol";
@@ -25,7 +25,7 @@ import {TestERC721_ERC20PaymentToken} from "../mocks/TestERC721_ERC20PaymentToke
 
 // Tests
 
-contract RouterAndApprovalV3Test is BaseTest, EIP712 {
+contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
     using SafeERC20 for IERC20;
 
     // Errors
@@ -38,42 +38,32 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
     event RouterUpdated(address newRouter);
 
     // Constants
-    IAllowanceHolder constant ALLOWANCE_HOLDER =
-        IAllowanceHolder(payable(0x0000000000001fF3684f28c67538d4D072C22734));
+    IAllowanceHolder constant ALLOWANCE_HOLDER = IAllowanceHolder(payable(0x0000000000001fF3684f28c67538d4D072C22734));
 
     // Fields to be set
-    RelayRouterV3 router;
-    RelayApprovalProxyV3 approvalProxy;
+    RelayRouterV2_1 router;
+    RelayApprovalProxyV2_1 approvalProxy;
 
     // Various type-hashes / type-strings
     bytes32 public constant _CALL3VALUE_TYPEHASH =
-        keccak256(
-            "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
-        );
-    bytes32 public constant _RELAYER_WITNESS_TYPEHASH =
-        keccak256(
-            "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
-        );
-    bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_TYPEHASH =
-        keccak256(
-            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
-        );
-    bytes32 public constant _PERMIT2_BATCH_TRANSFER_FROM_TYPEHASH =
-        keccak256(
-            "PermitBatchTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
-        );
-    bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_BATCH_TYPEHASH =
-        keccak256(
-            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
-        );
+        keccak256("Call3Value(address target,bool allowFailure,uint256 value,bytes callData)");
+    bytes32 public constant _RELAYER_WITNESS_TYPEHASH = keccak256(
+        "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+    );
+    bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_TYPEHASH = keccak256(
+        "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
+    );
+    bytes32 public constant _PERMIT2_BATCH_TRANSFER_FROM_TYPEHASH = keccak256(
+        "PermitBatchTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
+    );
+    bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_BATCH_TYPEHASH = keccak256(
+        "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
+    );
     bytes32 private constant _PERMIT2612_TYPEHASH =
-        keccak256(
-            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
-        );
-    bytes32 private constant _PERMIT3009_TYPEHASH =
-        keccak256(
-            "ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
-        );
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    bytes32 private constant _PERMIT3009_TYPEHASH = keccak256(
+        "ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+    );
     string public constant _PERMIT2_RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
 
@@ -84,12 +74,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         super.setUp();
 
         // Deploy router and approval-proxy contracts
-        router = new RelayRouterV3();
-        approvalProxy = new RelayApprovalProxyV3(
-            address(this),
-            address(router),
-            address(PERMIT2)
-        );
+        router = new RelayRouterV2_1();
+        approvalProxy = new RelayApprovalProxyV2_1(address(this), address(router), address(PERMIT2));
 
         // Mint tokens to alice
         erc20_1.mint(alice.addr, 1 ether);
@@ -105,25 +91,17 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         erc20_permit.approve(address(PERMIT2), type(uint256).max);
         vm.stopPrank();
     }
-    
+
     // Tests
 
     function testCorrectWitnessTypehashes() public pure {
         assertEq(
-            keccak256(
-                abi.encodePacked(
-                    _PERMIT2_WITNESS_TRANSFER_TYPEHASH_STUB,
-                    _PERMIT2_RELAYER_WITNESS_TYPE_STRING
-                )
-            ),
+            keccak256(abi.encodePacked(_PERMIT2_WITNESS_TRANSFER_TYPEHASH_STUB, _PERMIT2_RELAYER_WITNESS_TYPE_STRING)),
             _PERMIT2_FULL_RELAYER_WITNESS_TYPEHASH
         );
         assertEq(
             keccak256(
-                abi.encodePacked(
-                    _PERMIT2_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
-                    _PERMIT2_RELAYER_WITNESS_TYPE_STRING
-                )
+                abi.encodePacked(_PERMIT2_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB, _PERMIT2_RELAYER_WITNESS_TYPE_STRING)
             ),
             _PERMIT2_FULL_RELAYER_WITNESS_BATCH_TYPEHASH
         );
@@ -132,77 +110,32 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
     function testApprovalProxy__Permit2TransferAndMulticall() public {
         // Create the permit
 
-        ISignatureTransfer.TokenPermissions[]
-            memory permitted = new ISignatureTransfer.TokenPermissions[](3);
-        permitted[0] = ISignatureTransfer.TokenPermissions({
-            token: address(erc20_1),
-            amount: 0.1 ether
-        });
-        permitted[1] = ISignatureTransfer.TokenPermissions({
-            token: address(erc20_2),
-            amount: 0.2 ether
-        });
-        permitted[2] = ISignatureTransfer.TokenPermissions({
-            token: address(erc20_3),
-            amount: 0.3 ether
-        });
+        ISignatureTransfer.TokenPermissions[] memory permitted = new ISignatureTransfer.TokenPermissions[](3);
+        permitted[0] = ISignatureTransfer.TokenPermissions({token: address(erc20_1), amount: 0.1 ether});
+        permitted[1] = ISignatureTransfer.TokenPermissions({token: address(erc20_2), amount: 0.2 ether});
+        permitted[2] = ISignatureTransfer.TokenPermissions({token: address(erc20_3), amount: 0.3 ether});
 
-        ISignatureTransfer.PermitBatchTransferFrom
-            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
-                permitted: permitted,
-                nonce: 1,
-                deadline: block.timestamp + 100
-            });
+        ISignatureTransfer.PermitBatchTransferFrom memory permit = ISignatureTransfer.PermitBatchTransferFrom({
+            permitted: permitted,
+            nonce: 1,
+            deadline: block.timestamp + 100
+        });
 
         // Create calldata to transfer tokens from the router to bob
 
-        bytes memory calldata1 = abi.encodeWithSelector(
-            erc20_1.transfer.selector,
-            bob.addr,
-            0.03 ether
-        );
-        bytes memory calldata2 = abi.encodeWithSelector(
-            erc20_2.transfer.selector,
-            bob.addr,
-            0.15 ether
-        );
-        bytes memory calldata3 = abi.encodeWithSelector(
-            erc20_3.transfer.selector,
-            bob.addr,
-            0.2 ether
-        );
+        bytes memory calldata1 = abi.encodeWithSelector(erc20_1.transfer.selector, bob.addr, 0.03 ether);
+        bytes memory calldata2 = abi.encodeWithSelector(erc20_2.transfer.selector, bob.addr, 0.15 ether);
+        bytes memory calldata3 = abi.encodeWithSelector(erc20_3.transfer.selector, bob.addr, 0.2 ether);
 
         Call3Value[] memory calls = new Call3Value[](3);
-        calls[0] = Call3Value({
-            target: address(erc20_1),
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
-        calls[1] = Call3Value({
-            target: address(erc20_2),
-            allowFailure: false,
-            value: 0,
-            callData: calldata2
-        });
-        calls[2] = Call3Value({
-            target: address(erc20_3),
-            allowFailure: false,
-            value: 0,
-            callData: calldata3
-        });
+        calls[0] = Call3Value({target: address(erc20_1), allowFailure: false, value: 0, callData: calldata1});
+        calls[1] = Call3Value({target: address(erc20_2), allowFailure: false, value: 0, callData: calldata2});
+        calls[2] = Call3Value({target: address(erc20_3), allowFailure: false, value: 0, callData: calldata3});
 
         // Generate a permit from alice
 
-        bytes32 witness = keccak256(
-            abi.encode(
-                _RELAYER_WITNESS_TYPEHASH,
-                bob.addr,
-                alice.addr,
-                address(0),
-                _getCallsHash(calls)
-            )
-        );
+        bytes32 witness =
+            keccak256(abi.encode(_RELAYER_WITNESS_TYPEHASH, bob.addr, alice.addr, address(0), _getCallsHash(calls)));
         bytes memory permitSignature = getPermit2BatchWitnessSignature(
             permit,
             address(approvalProxy),
@@ -215,25 +148,11 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         // Only the "relayer" (in this case bob) can use the permit via the approval-proxy
         vm.prank(cal.addr);
         vm.expectRevert(InvalidSigner.selector);
-        approvalProxy.permit2TransferAndMulticall(
-            alice.addr,
-            permit,
-            calls,
-            alice.addr,
-            address(0),
-            permitSignature
-        );
+        approvalProxy.permit2TransferAndMulticall(alice.addr, permit, calls, alice.addr, address(0), permitSignature);
 
         // Call the router
         vm.prank(bob.addr);
-        approvalProxy.permit2TransferAndMulticall(
-            alice.addr,
-            permit,
-            calls,
-            alice.addr,
-            address(0),
-            permitSignature
-        );
+        approvalProxy.permit2TransferAndMulticall(alice.addr, permit, calls, alice.addr, address(0), permitSignature);
 
         // Funds transferred as part of the calls are in bob's wallet
         assertEq(erc20_1.balanceOf(bob.addr), 0.03 ether);
@@ -259,22 +178,13 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         path[1] = USDC;
 
         bytes memory data = abi.encodeWithSelector(
-            IUniswapV2Router01.swapExactETHForTokens.selector,
-            0,
-            path,
-            alice.addr,
-            block.timestamp
+            IUniswapV2Router01.swapExactETHForTokens.selector, 0, path, alice.addr, block.timestamp
         );
 
         // Encode router calls
 
         Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
-            target: ROUTER_V2,
-            allowFailure: false,
-            value: 1 ether,
-            callData: data
-        });
+        calls[0] = Call3Value({target: ROUTER_V2, allowFailure: false, value: 1 ether, callData: data});
 
         uint256 aliceEthBalanceBefore = alice.addr.balance;
         uint256 aliceUsdcBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
@@ -297,35 +207,17 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         path[1] = USDC;
 
         bytes memory calldata1 = abi.encodeWithSelector(
-            IUniswapV2Router01.swapExactETHForTokens.selector,
-            0,
-            path,
-            alice.addr,
-            block.timestamp
+            IUniswapV2Router01.swapExactETHForTokens.selector, 0, path, alice.addr, block.timestamp
         );
         bytes memory calldata2 = abi.encodeWithSelector(
-            IUniswapV2Router01.swapExactETHForTokens.selector,
-            0,
-            path,
-            alice.addr,
-            block.timestamp
+            IUniswapV2Router01.swapExactETHForTokens.selector, 0, path, alice.addr, block.timestamp
         );
 
         // Encode router calls
 
         Call3Value[] memory calls = new Call3Value[](2);
-        calls[0] = Call3Value({
-            target: ROUTER_V2,
-            allowFailure: false,
-            value: 1 ether,
-            callData: calldata1
-        });
-        calls[1] = Call3Value({
-            target: ROUTER_V2,
-            allowFailure: false,
-            value: 1 ether,
-            callData: calldata2
-        });
+        calls[0] = Call3Value({target: ROUTER_V2, allowFailure: false, value: 1 ether, callData: calldata1});
+        calls[1] = Call3Value({target: ROUTER_V2, allowFailure: false, value: 1 ether, callData: calldata2});
 
         uint256 aliceEthBalanceBefore = alice.addr.balance;
         uint256 aliceUsdcBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
@@ -343,9 +235,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
     function testRouter__Multicall__SwapAndCallWithCleanup() public {
         // Deploy NFT that costs 20 USDC to mint
 
-        TestERC721_ERC20PaymentToken nft = new TestERC721_ERC20PaymentToken(
-            USDC
-        );
+        TestERC721_ERC20PaymentToken nft = new TestERC721_ERC20PaymentToken(USDC);
 
         // Encode swap calldata
 
@@ -355,59 +245,28 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         // Swap ETH to USDC
         bytes memory calldata1 = abi.encodeWithSelector(
-            IUniswapV2Router01.swapExactETHForTokens.selector,
-            0,
-            path,
-            address(router),
-            block.timestamp
+            IUniswapV2Router01.swapExactETHForTokens.selector, 0, path, address(router), block.timestamp
         );
         // Approve USDC to the NFT contract
-        bytes memory calldata2 = abi.encodeWithSelector(
-            IERC20.approve.selector,
-            address(nft),
-            type(uint256).max
-        );
+        bytes memory calldata2 = abi.encodeWithSelector(IERC20.approve.selector, address(nft), type(uint256).max);
         // Mint on the NFT contract
-        bytes memory calldata3 = abi.encodeWithSelector(
-            nft.mint.selector,
-            alice.addr,
-            10
-        );
+        bytes memory calldata3 = abi.encodeWithSelector(nft.mint.selector, alice.addr, 10);
 
         // Encode router calls
 
         Call3Value[] memory calls = new Call3Value[](3);
-        calls[0] = Call3Value({
-            target: ROUTER_V2,
-            allowFailure: false,
-            value: 1 ether,
-            callData: calldata1
-        });
-        calls[1] = Call3Value({
-            target: USDC,
-            allowFailure: false,
-            value: 0,
-            callData: calldata2
-        });
-        calls[2] = Call3Value({
-            target: address(nft),
-            allowFailure: false,
-            value: 0,
-            callData: calldata3
-        });
+        calls[0] = Call3Value({target: ROUTER_V2, allowFailure: false, value: 1 ether, callData: calldata1});
+        calls[1] = Call3Value({target: USDC, allowFailure: false, value: 0, callData: calldata2});
+        calls[2] = Call3Value({target: address(nft), allowFailure: false, value: 0, callData: calldata3});
 
         uint256 aliceEthBalanceBefore = alice.addr.balance;
-        uint256 routerUsdcBalanceBefore = IERC20(USDC).balanceOf(
-            address(router)
-        );
+        uint256 routerUsdcBalanceBefore = IERC20(USDC).balanceOf(address(router));
 
         vm.prank(alice.addr);
         router.multicall{value: 1 ether}(calls, address(0), address(0));
 
         uint256 aliceEthBalanceAfterMulticall = alice.addr.balance;
-        uint256 routerUsdcBalanceAfterMulticall = IERC20(USDC).balanceOf(
-            address(router)
-        );
+        uint256 routerUsdcBalanceAfterMulticall = IERC20(USDC).balanceOf(address(router));
 
         assertEq(aliceEthBalanceBefore - aliceEthBalanceAfterMulticall, 1 ether);
         assertGt(routerUsdcBalanceAfterMulticall, routerUsdcBalanceBefore);
@@ -423,12 +282,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         amounts[0] = 0;
         router.cleanupErc20s(tokens, recipients, amounts);
 
-        uint256 aliceUsdcBalanceAfterCleanup = IERC20(USDC).balanceOf(
-            alice.addr
-        );
-        uint256 routerUsdcBalanceAfterCleanup = IERC20(USDC).balanceOf(
-            address(this)
-        );
+        uint256 aliceUsdcBalanceAfterCleanup = IERC20(USDC).balanceOf(alice.addr);
+        uint256 routerUsdcBalanceAfterCleanup = IERC20(USDC).balanceOf(address(this));
         assertEq(aliceUsdcBalanceAfterCleanup, routerUsdcBalanceAfterMulticall);
         assertEq(routerUsdcBalanceAfterCleanup, 0);
     }
@@ -441,22 +296,12 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         // Encode transfer calldata
 
-        bytes memory calldata1 = abi.encodeWithSelector(
-            IERC20.transferFrom.selector,
-            alice.addr,
-            bob.addr,
-            1 ether
-        );
+        bytes memory calldata1 = abi.encodeWithSelector(IERC20.transferFrom.selector, alice.addr, bob.addr, 1 ether);
 
         // Encode router calls
 
         Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
-            target: address(erc20_1),
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
+        calls[0] = Call3Value({target: address(erc20_1), allowFailure: false, value: 0, callData: calldata1});
 
         address[] memory tokens = new address[](1);
         tokens[0] = address(erc20_1);
@@ -467,14 +312,10 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         // requires alice to give an approval to the router (which is the sender)
 
         vm.prank(alice.addr);
-        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, address(router), 0, 1 ether));
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            calls,
-            alice.addr,
-            address(0)
+        vm.expectRevert(
+            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, address(router), 0, 1 ether)
         );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0));
 
         // Encode router calls
 
@@ -482,23 +323,13 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             target: address(erc20_1),
             allowFailure: false,
             value: 0,
-            callData: abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                bob.addr,
-                1 ether
-            )
+            callData: abi.encodeWithSelector(IERC20.transfer.selector, bob.addr, 1 ether)
         });
 
         // This time the call should work because we're using "transfer(bob)" which doesn't require any approval
 
         vm.prank(alice.addr);
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            calls,
-            alice.addr,
-            address(0)
-        );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0));
 
         assertEq(erc20_1.balanceOf(bob.addr), 1 ether);
     }
@@ -520,11 +351,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         path[1] = DAI;
 
         // Approve the uniswap router to spend USDC
-        bytes memory calldata1 = abi.encodeWithSelector(
-            IERC20.approve.selector,
-            ROUTER_V2,
-            1000 * 10 ** 6
-        );
+        bytes memory calldata1 = abi.encodeWithSelector(IERC20.approve.selector, ROUTER_V2, 1000 * 10 ** 6);
         // Swap USDC for DAI
         bytes memory calldata2 = abi.encodeWithSelector(
             IUniswapV2Router01.swapExactTokensForTokens.selector,
@@ -538,18 +365,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         // Encode the router calls
 
         Call3Value[] memory calls = new Call3Value[](2);
-        calls[0] = Call3Value({
-            target: USDC,
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
-        calls[1] = Call3Value({
-            target: ROUTER_V2,
-            allowFailure: false,
-            value: 0,
-            callData: calldata2
-        });
+        calls[0] = Call3Value({target: USDC, allowFailure: false, value: 0, callData: calldata1});
+        calls[1] = Call3Value({target: ROUTER_V2, allowFailure: false, value: 0, callData: calldata2});
 
         address[] memory tokens = new address[](1);
         tokens[0] = USDC;
@@ -557,13 +374,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         amounts[0] = 1000 * 10 ** 6;
 
         vm.prank(alice.addr);
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            calls,
-            alice.addr,
-            address(0)
-        );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0));
 
         assertEq(IERC20(USDC).balanceOf(alice.addr), 0);
         assertEq(IERC20(USDC).balanceOf(address(router)), 0);
@@ -583,21 +394,12 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         // Encode the calldata
 
-        bytes memory calldata1 = abi.encodeWithSelector(
-            IERC20.transfer.selector,
-            bob.addr,
-            1 ether
-        );
+        bytes memory calldata1 = abi.encodeWithSelector(IERC20.transfer.selector, bob.addr, 1 ether);
 
         // Encode the router calls
 
         Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
-            target: address(noOpErc20),
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
+        calls[0] = Call3Value({target: address(noOpErc20), allowFailure: false, value: 0, callData: calldata1});
 
         address[] memory tokens = new address[](1);
         tokens[0] = address(noOpErc20);
@@ -606,14 +408,10 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         // The below call should fail given that the no-op token is not going to process any transfers
 
-        vm.expectRevert(abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, address(router), 0, 1 ether));
-        approvalProxy.transferAndMulticall(
-            tokens,
-            amounts,
-            calls,
-            alice.addr,
-            address(0)
+        vm.expectRevert(
+            abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, address(router), 0, 1 ether)
         );
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0));
     }
 
     function testApprovalProxy__SetRouter() public {
@@ -633,19 +431,9 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         // Generate permit
 
         bytes32 structHash = keccak256(
-            abi.encode(
-                _PERMIT2612_TYPEHASH,
-                alice.addr,
-                address(approvalProxy),
-                1 ether,
-                0,
-                block.timestamp + 100
-            )
+            abi.encode(_PERMIT2612_TYPEHASH, alice.addr, address(approvalProxy), 1 ether, 0, block.timestamp + 100)
         );
-        bytes32 eip712PermitHash = _hashTypedData(
-            erc20_permit.DOMAIN_SEPARATOR(),
-            structHash
-        );
+        bytes32 eip712PermitHash = _hashTypedData(erc20_permit.DOMAIN_SEPARATOR(), structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
 
         Permit2612[] memory permits = new Permit2612[](1);
@@ -667,30 +455,16 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             target: address(erc20_permit),
             allowFailure: false,
             value: 0,
-            callData: abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                bob.addr,
-                1 ether
-            )
+            callData: abi.encodeWithSelector(IERC20.transfer.selector, bob.addr, 1 ether)
         });
 
         // Only the permit owner is allowed to use their permit
         vm.prank(bob.addr);
         vm.expectRevert(Unauthorized.selector);
-        approvalProxy.permitTransferAndMulticall(
-            permits,
-            calls,
-            bob.addr,
-            address(0)
-        );
+        approvalProxy.permitTransferAndMulticall(permits, calls, bob.addr, address(0));
 
         vm.prank(alice.addr);
-        approvalProxy.permitTransferAndMulticall(
-            permits,
-            calls,
-            alice.addr,
-            address(0)
-        );
+        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr, address(0));
 
         assertEq(erc20_permit.balanceOf(alice.addr), 0);
         assertEq(erc20_permit.balanceOf(bob.addr), 1 ether);
@@ -700,19 +474,9 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         // Generate permit
 
         bytes32 structHash = keccak256(
-            abi.encode(
-                _PERMIT2612_TYPEHASH,
-                alice.addr,
-                address(approvalProxy),
-                1 ether,
-                0,
-                block.timestamp + 100
-            )
+            abi.encode(_PERMIT2612_TYPEHASH, alice.addr, address(approvalProxy), 1 ether, 0, block.timestamp + 100)
         );
-        bytes32 eip712PermitHash = _hashTypedData(
-            erc20_permit.DOMAIN_SEPARATOR(),
-            structHash
-        );
+        bytes32 eip712PermitHash = _hashTypedData(erc20_permit.DOMAIN_SEPARATOR(), structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
 
         Permit2612[] memory permits = new Permit2612[](1);
@@ -734,62 +498,36 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             target: address(erc20_permit),
             allowFailure: false,
             value: 0,
-            callData: abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                bob.addr,
-                1 ether
-            )
+            callData: abi.encodeWithSelector(IERC20.transfer.selector, bob.addr, 1 ether)
         });
 
         // Frontrun the permit
         vm.prank(cal.addr);
-        erc20_permit.permit(
-            alice.addr,
-            address(approvalProxy),
-            1 ether,
-            block.timestamp + 100,
-            v,
-            r,
-            s
-        );
+        erc20_permit.permit(alice.addr, address(approvalProxy), 1 ether, block.timestamp + 100, v, r, s);
 
         // Frontran permits are successfully skipped
 
         vm.prank(alice.addr);
-        approvalProxy.permitTransferAndMulticall(
-            permits,
-            calls,
-            alice.addr,
-            address(0)
-        );
+        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr, address(0));
 
         assertEq(erc20_permit.balanceOf(alice.addr), 0);
         assertEq(erc20_permit.balanceOf(bob.addr), 1 ether);
     }
 
-    function testApprovalProxy__Permit2TransferAndMulticall__MaliciousSenderChangingRefundToAndNftRecipient()
-        public
-    {
+    function testApprovalProxy__Permit2TransferAndMulticall__MaliciousSenderChangingRefundToAndNftRecipient() public {
         // Deploy NFT that costs 20 USDC to mint
 
-        TestERC721_ERC20PaymentToken nft = new TestERC721_ERC20PaymentToken(
-            USDC
-        );
+        TestERC721_ERC20PaymentToken nft = new TestERC721_ERC20PaymentToken(USDC);
 
         // Generate permit
 
-        ISignatureTransfer.TokenPermissions[]
-            memory permitted = new ISignatureTransfer.TokenPermissions[](1);
-        permitted[0] = ISignatureTransfer.TokenPermissions({
-            token: address(erc20_1),
-            amount: 0.1 ether
+        ISignatureTransfer.TokenPermissions[] memory permitted = new ISignatureTransfer.TokenPermissions[](1);
+        permitted[0] = ISignatureTransfer.TokenPermissions({token: address(erc20_1), amount: 0.1 ether});
+        ISignatureTransfer.PermitBatchTransferFrom memory permit = ISignatureTransfer.PermitBatchTransferFrom({
+            permitted: permitted,
+            nonce: 1,
+            deadline: block.timestamp + 100
         });
-        ISignatureTransfer.PermitBatchTransferFrom
-            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
-                permitted: permitted,
-                nonce: 1,
-                deadline: block.timestamp + 100
-            });
 
         // Encode swap calldata
 
@@ -798,56 +536,22 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         path[1] = USDC;
 
         bytes memory calldata1 = abi.encodeWithSelector(
-            IUniswapV2Router01.swapExactETHForTokens.selector,
-            0,
-            path,
-            alice.addr,
-            block.timestamp
+            IUniswapV2Router01.swapExactETHForTokens.selector, 0, path, alice.addr, block.timestamp
         );
-        bytes memory calldata2 = abi.encodeWithSelector(
-            IERC20.approve.selector,
-            address(nft),
-            type(uint256).max
-        );
-        bytes memory calldata3 = abi.encodeWithSelector(
-            nft.mint.selector,
-            alice.addr,
-            10
-        );
+        bytes memory calldata2 = abi.encodeWithSelector(IERC20.approve.selector, address(nft), type(uint256).max);
+        bytes memory calldata3 = abi.encodeWithSelector(nft.mint.selector, alice.addr, 10);
 
         // Encode router calls
 
         Call3Value[] memory calls = new Call3Value[](3);
-        calls[0] = Call3Value({
-            target: ROUTER_V2,
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
-        calls[1] = Call3Value({
-            target: USDC,
-            allowFailure: false,
-            value: 0,
-            callData: calldata2
-        });
-        calls[2] = Call3Value({
-            target: address(nft),
-            allowFailure: false,
-            value: 0,
-            callData: calldata3
-        });
+        calls[0] = Call3Value({target: ROUTER_V2, allowFailure: false, value: 0, callData: calldata1});
+        calls[1] = Call3Value({target: USDC, allowFailure: false, value: 0, callData: calldata2});
+        calls[2] = Call3Value({target: address(nft), allowFailure: false, value: 0, callData: calldata3});
 
         // Get permit signature
 
-        bytes32 witness = keccak256(
-            abi.encode(
-                _RELAYER_WITNESS_TYPEHASH,
-                bob.addr,
-                alice.addr,
-                alice.addr,
-                _getCallsHash(calls)
-            )
-        );
+        bytes32 witness =
+            keccak256(abi.encode(_RELAYER_WITNESS_TYPEHASH, bob.addr, alice.addr, alice.addr, _getCallsHash(calls)));
         bytes memory permitSignature = getPermit2BatchWitnessSignature(
             permit,
             address(approvalProxy),
@@ -860,14 +564,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         // Replace some fields and expect the router call to fail
         vm.expectRevert(InvalidSigner.selector);
         vm.prank(bob.addr);
-        approvalProxy.permit2TransferAndMulticall(
-            alice.addr,
-            permit,
-            calls,
-            bob.addr,
-            bob.addr,
-            permitSignature
-        );
+        approvalProxy.permit2TransferAndMulticall(alice.addr, permit, calls, bob.addr, bob.addr, permitSignature);
     }
 
     function testRouter_USDTCleanupWithSafeERC20() public {
@@ -884,52 +581,30 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 0;
 
-        bytes memory calldata1 = abi.encodeWithSelector(
-            router.cleanupErc20s.selector,
-            tokens,
-            recipients,
-            amounts
-        );
+        bytes memory calldata1 = abi.encodeWithSelector(router.cleanupErc20s.selector, tokens, recipients, amounts);
 
         // Encode router calls
 
         Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
-            target: address(router),
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
+        calls[0] = Call3Value({target: address(router), allowFailure: false, value: 0, callData: calldata1});
 
         uint256 bobUsdtBalanceBefore = IERC20(USDT).balanceOf(bob.addr);
 
         vm.prank(bob.addr);
         router.multicall(calls, address(0), address(0));
 
-        assertEq(
-            IERC20(USDT).balanceOf(bob.addr) - bobUsdtBalanceBefore,
-            1000 * 10 ** 6
-        );
+        assertEq(IERC20(USDT).balanceOf(bob.addr) - bobUsdtBalanceBefore, 1000 * 10 ** 6);
     }
 
     function testRouter_NativeCleanupViaCall() public {
         // Deal router some native tokens
         vm.deal(address(router), 1 ether);
 
-        bytes memory calldata1 = abi.encodeWithSelector(
-            router.cleanupNativeViaCall.selector,
-            0,
-            bob.addr,
-            bytes("0x1234567890")
-        );
+        bytes memory calldata1 =
+            abi.encodeWithSelector(router.cleanupNativeViaCall.selector, 0, bob.addr, bytes("0x1234567890"));
 
         Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
-            target: address(router),
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
+        calls[0] = Call3Value({target: address(router), allowFailure: false, value: 0, callData: calldata1});
 
         uint256 bobBalanceBefore = address(bob.addr).balance;
 
@@ -947,21 +622,12 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         // Encode mint calldata
 
         // "safeMint" is not going to call "onERC721Received"
-        bytes memory calldata1 = abi.encodeWithSignature(
-            "safeMint(address,uint256)",
-            address(router),
-            1
-        );
+        bytes memory calldata1 = abi.encodeWithSignature("safeMint(address,uint256)", address(router), 1);
 
         // Encode router calls
 
         Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = Call3Value({
-            target: address(erc721),
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
+        calls[0] = Call3Value({target: address(erc721), allowFailure: false, value: 0, callData: calldata1});
 
         vm.prank(alice.addr);
         router.multicall(calls, address(0), alice.addr);
@@ -979,28 +645,14 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         // "mint" is not going to call "onERC721Received"
         bytes memory calldata1 = abi.encodeWithSignature("mint(uint256)", 1);
-        bytes memory calldata2 = abi.encodeWithSignature(
-            "safeTransferFrom(address,address,uint256)",
-            address(router),
-            alice.addr,
-            1
-        );
+        bytes memory calldata2 =
+            abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", address(router), alice.addr, 1);
 
         // Encode router calls
 
         Call3Value[] memory calls = new Call3Value[](2);
-        calls[0] = Call3Value({
-            target: address(erc721),
-            allowFailure: false,
-            value: 0,
-            callData: calldata1
-        });
-        calls[1] = Call3Value({
-            target: address(erc721),
-            allowFailure: false,
-            value: 0,
-            callData: calldata2
-        });
+        calls[0] = Call3Value({target: address(erc721), allowFailure: false, value: 0, callData: calldata1});
+        calls[1] = Call3Value({target: address(erc721), allowFailure: false, value: 0, callData: calldata2});
 
         vm.prank(alice.addr);
         router.multicall(calls, address(0), alice.addr);
@@ -1022,11 +674,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             target: address(USDC),
             allowFailure: false,
             value: 0,
-            callData: abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                bob.addr,
-                amount
-            )
+            callData: abi.encodeWithSelector(IERC20.transfer.selector, bob.addr, amount)
         });
 
         bytes32 witness = _getRelayerWitnessHash(alice.addr, alice.addr, alice.addr, calls);
@@ -1035,15 +683,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         // Generate permit
 
         bytes32 structHash = keccak256(
-            abi.encode(
-                _PERMIT3009_TYPEHASH,
-                alice.addr,
-                address(approvalProxy),
-                amount,
-                0,
-                validBefore,
-                witness
-            )
+            abi.encode(_PERMIT3009_TYPEHASH, alice.addr, address(approvalProxy), amount, 0, validBefore, witness)
         );
         bytes32 eip712PermitHash = _hashTypedData(
             // The only purpose of the conversion is to be able to call "DOMAIN_SEPARATOR"
@@ -1052,17 +692,9 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
 
-
         Permit3009[] memory permits = new Permit3009[](1);
-        permits[0] = Permit3009({
-            from: alice.addr,
-            value: amount,
-            validAfter: 0,
-            validBefore: validBefore,
-            v: v,
-            r: r,
-            s: s
-        });
+        permits[0] =
+            Permit3009({from: alice.addr, value: amount, validAfter: 0, validBefore: validBefore, v: v, r: r, s: s});
         address[] memory tokens = new address[](1);
         tokens[0] = USDC;
 
@@ -1070,22 +702,10 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         vm.prank(bob.addr);
         vm.expectRevert("FiatTokenV2: invalid signature");
-        approvalProxy.permit3009TransferAndMulticall(
-            permits,
-            tokens,
-            calls,
-            bob.addr,
-            alice.addr
-        );
+        approvalProxy.permit3009TransferAndMulticall(permits, tokens, calls, bob.addr, alice.addr);
 
         vm.prank(alice.addr);
-        approvalProxy.permit3009TransferAndMulticall(
-            permits,
-            tokens,
-            calls,
-            alice.addr,
-            alice.addr
-        );
+        approvalProxy.permit3009TransferAndMulticall(permits, tokens, calls, alice.addr, alice.addr);
     }
 
     // Utility methods
@@ -1108,22 +728,15 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         return keccak256(abi.encodePacked(callHashes));
     }
 
-    function _getRelayerWitnessHash(address relayer, address refundTo, address nftRecipient, Call3Value[] memory calls) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                _RELAYER_WITNESS_TYPEHASH,
-                relayer,
-                refundTo,
-                nftRecipient,
-                _getCallsHash(calls)
-            )
-        );
+    function _getRelayerWitnessHash(address relayer, address refundTo, address nftRecipient, Call3Value[] memory calls)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(_RELAYER_WITNESS_TYPEHASH, relayer, refundTo, nftRecipient, _getCallsHash(calls)));
     }
 
-    function _hashTypedData(
-        bytes32 domainSeparator,
-        bytes32 structHash
-    ) internal pure returns (bytes32 digest) {
+    function _hashTypedData(bytes32 domainSeparator, bytes32 structHash) internal pure returns (bytes32 digest) {
         digest = domainSeparator;
         /// @solidity memory-safe-assembly
         assembly {
@@ -1139,12 +752,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
     // Not actually used but still required to be defined
 
-    function _domainNameAndVersion()
-        internal
-        pure
-        override
-        returns (string memory name, string memory version)
-    {
+    function _domainNameAndVersion() internal pure override returns (string memory name, string memory version) {
         name = "UNUSED";
         version = "UNUSED";
     }
