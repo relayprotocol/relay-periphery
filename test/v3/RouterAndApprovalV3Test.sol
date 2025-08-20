@@ -14,18 +14,16 @@ import {EIP712} from "solady/src/utils/EIP712.sol";
 
 import {RelayApprovalProxyV3} from "../../src/v3/RelayApprovalProxyV3.sol";
 import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
-import {Call3Value, Permit} from "../../src/v3/utils/RelayStructs.sol";
+import {Call3Value, Permit2612, Permit3009} from "../../src/v3/utils/RelayStructs.sol";
 
-import {BaseTest} from "../base/BaseTest.sol";
+import {BaseTest, RelayerWitness} from "../base/BaseTest.sol";
 import {IUniswapV2Router01} from "../interfaces/IUniswapV2Router02.sol";
 import {NoOpERC20} from "../mocks/NoOpERC20.sol";
 import {TestERC20Permit} from "../mocks/TestERC20Permit.sol";
 import {TestERC721} from "../mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "../mocks/TestERC721_ERC20PaymentToken.sol";
 
-struct RelayerWitness {
-    address relayer;
-}
+// Tests
 
 contract RouterAndApprovalV3Test is BaseTest, EIP712 {
     using SafeERC20 for IERC20;
@@ -52,27 +50,31 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         keccak256(
             "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
-    bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
+    bytes32 public constant _RELAYER_WITNESS_TYPEHASH =
         keccak256(
             "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
-    bytes32 public constant _FULL_RELAYER_WITNESS_TYPEHASH =
+    bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_TYPEHASH =
         keccak256(
             "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
         );
-    bytes32 public constant _FULL_RELAYER_WITNESS_BATCH_TYPEHASH =
-        keccak256(
-            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
-        );
-    bytes32 public constant _PERMIT_BATCH_TRANSFER_FROM_TYPEHASH =
+    bytes32 public constant _PERMIT2_BATCH_TRANSFER_FROM_TYPEHASH =
         keccak256(
             "PermitBatchTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline)TokenPermissions(address token,uint256 amount)"
         );
-    bytes32 private constant _2612_PERMIT_TYPEHASH =
+    bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_BATCH_TYPEHASH =
+        keccak256(
+            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
+        );
+    bytes32 private constant _PERMIT2612_TYPEHASH =
         keccak256(
             "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
         );
-    string public constant _RELAYER_WITNESS_TYPE_STRING =
+    bytes32 private constant _PERMIT3009_TYPEHASH =
+        keccak256(
+            "ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+        );
+    string public constant _PERMIT2_RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
 
     // Setup
@@ -110,20 +112,20 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         assertEq(
             keccak256(
                 abi.encodePacked(
-                    _PERMIT_WITNESS_TRANSFER_TYPEHASH_STUB,
-                    _RELAYER_WITNESS_TYPE_STRING
+                    _PERMIT2_WITNESS_TRANSFER_TYPEHASH_STUB,
+                    _PERMIT2_RELAYER_WITNESS_TYPE_STRING
                 )
             ),
-            _FULL_RELAYER_WITNESS_TYPEHASH
+            _PERMIT2_FULL_RELAYER_WITNESS_TYPEHASH
         );
         assertEq(
             keccak256(
                 abi.encodePacked(
-                    _PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
-                    _RELAYER_WITNESS_TYPE_STRING
+                    _PERMIT2_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB,
+                    _PERMIT2_RELAYER_WITNESS_TYPE_STRING
                 )
             ),
-            _FULL_RELAYER_WITNESS_BATCH_TYPEHASH
+            _PERMIT2_FULL_RELAYER_WITNESS_BATCH_TYPEHASH
         );
     }
 
@@ -192,32 +194,20 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         // Generate a permit from alice
 
-        bytes32[] memory call3ValuesHashes = new bytes32[](calls.length);
-        for (uint256 i = 0; i < calls.length; i++) {
-            call3ValuesHashes[i] = keccak256(
-                abi.encode(
-                    _CALL3VALUE_TYPEHASH,
-                    calls[i].target,
-                    calls[i].allowFailure,
-                    calls[i].value,
-                    keccak256(calls[i].callData)
-                )
-            );
-        }
         bytes32 witness = keccak256(
             abi.encode(
-                _EIP_712_RELAYER_WITNESS_TYPE_HASH,
+                _RELAYER_WITNESS_TYPEHASH,
                 bob.addr,
                 alice.addr,
                 address(0),
-                keccak256(abi.encodePacked(call3ValuesHashes))
+                _getCallsHash(calls)
             )
         );
-        bytes memory permitSignature = getPermitBatchWitnessSignature(
+        bytes memory permitSignature = getPermit2BatchWitnessSignature(
             permit,
             address(approvalProxy),
             alice.key,
-            _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
+            _PERMIT2_FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
             witness,
             PERMIT2_DOMAIN_SEPARATOR
         );
@@ -644,7 +634,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         bytes32 structHash = keccak256(
             abi.encode(
-                _2612_PERMIT_TYPEHASH,
+                _PERMIT2612_TYPEHASH,
                 alice.addr,
                 address(approvalProxy),
                 1 ether,
@@ -658,8 +648,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
 
-        Permit[] memory permits = new Permit[](1);
-        permits[0] = Permit({
+        Permit2612[] memory permits = new Permit2612[](1);
+        permits[0] = Permit2612({
             token: address(erc20_permit),
             owner: alice.addr,
             value: 1 ether,
@@ -711,7 +701,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         bytes32 structHash = keccak256(
             abi.encode(
-                _2612_PERMIT_TYPEHASH,
+                _PERMIT2612_TYPEHASH,
                 alice.addr,
                 address(approvalProxy),
                 1 ether,
@@ -725,8 +715,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
 
-        Permit[] memory permits = new Permit[](1);
-        permits[0] = Permit({
+        Permit2612[] memory permits = new Permit2612[](1);
+        permits[0] = Permit2612({
             token: address(erc20_permit),
             owner: alice.addr,
             value: 1 ether,
@@ -849,32 +839,20 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         // Get permit signature
 
-        bytes32[] memory call3ValuesHashes = new bytes32[](calls.length);
-        for (uint256 i = 0; i < calls.length; i++) {
-            call3ValuesHashes[i] = keccak256(
-                abi.encode(
-                    _CALL3VALUE_TYPEHASH,
-                    calls[i].target,
-                    calls[i].allowFailure,
-                    calls[i].value,
-                    keccak256(calls[i].callData)
-                )
-            );
-        }
         bytes32 witness = keccak256(
             abi.encode(
-                _EIP_712_RELAYER_WITNESS_TYPE_HASH,
+                _RELAYER_WITNESS_TYPEHASH,
                 bob.addr,
                 alice.addr,
                 alice.addr,
-                keccak256(abi.encodePacked(call3ValuesHashes))
+                _getCallsHash(calls)
             )
         );
-        bytes memory permitSignature = getPermitBatchWitnessSignature(
+        bytes memory permitSignature = getPermit2BatchWitnessSignature(
             permit,
             address(approvalProxy),
             alice.key,
-            _FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
+            _PERMIT2_FULL_RELAYER_WITNESS_BATCH_TYPEHASH,
             witness,
             PERMIT2_DOMAIN_SEPARATOR
         );
@@ -1030,7 +1008,117 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         assertEq(erc721.ownerOf(1), alice.addr);
     }
 
+    function testApprovalProxy__Permit3009TransferAndMulticall() public {
+        uint256 amount = 1000 * 10 ** 6;
+
+        // Deal alice some USDC
+
+        deal(USDC, alice.addr, amount);
+
+        // Encode router calls
+
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({
+            target: address(USDC),
+            allowFailure: false,
+            value: 0,
+            callData: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                bob.addr,
+                amount
+            )
+        });
+
+        bytes32 witness = _getRelayerWitnessHash(alice.addr, alice.addr, alice.addr, calls);
+        uint256 validBefore = block.timestamp + 100;
+
+        // Generate permit
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                _PERMIT3009_TYPEHASH,
+                alice.addr,
+                address(approvalProxy),
+                amount,
+                0,
+                validBefore,
+                witness
+            )
+        );
+        bytes32 eip712PermitHash = _hashTypedData(
+            // The only purpose of the conversion is to be able to call "DOMAIN_SEPARATOR"
+            TestERC20Permit(USDC).DOMAIN_SEPARATOR(),
+            structHash
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
+
+
+        Permit3009[] memory permits = new Permit3009[](1);
+        permits[0] = Permit3009({
+            from: alice.addr,
+            value: amount,
+            validAfter: 0,
+            validBefore: validBefore,
+            v: v,
+            r: r,
+            s: s
+        });
+        address[] memory tokens = new address[](1);
+        tokens[0] = USDC;
+
+        // Any changes in the call parameters should result in a failure
+
+        vm.prank(bob.addr);
+        vm.expectRevert("FiatTokenV2: invalid signature");
+        approvalProxy.permit3009TransferAndMulticall(
+            permits,
+            tokens,
+            calls,
+            bob.addr,
+            alice.addr
+        );
+
+        vm.prank(alice.addr);
+        approvalProxy.permit3009TransferAndMulticall(
+            permits,
+            tokens,
+            calls,
+            alice.addr,
+            alice.addr
+        );
+    }
+
     // Utility methods
+
+    function _getCallsHash(Call3Value[] memory calls) internal pure returns (bytes32) {
+        bytes32[] memory callHashes = new bytes32[](calls.length);
+        for (uint256 i = 0; i < calls.length; i++) {
+            // Encode the call and hash it
+            callHashes[i] = keccak256(
+                abi.encode(
+                    _CALL3VALUE_TYPEHASH,
+                    calls[i].target,
+                    calls[i].allowFailure,
+                    calls[i].value,
+                    keccak256(calls[i].callData)
+                )
+            );
+        }
+
+        return keccak256(abi.encodePacked(callHashes));
+    }
+
+    function _getRelayerWitnessHash(address relayer, address refundTo, address nftRecipient, Call3Value[] memory calls) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                _RELAYER_WITNESS_TYPEHASH,
+                relayer,
+                refundTo,
+                nftRecipient,
+                _getCallsHash(calls)
+            )
+        );
+    }
 
     function _hashTypedData(
         bytes32 domainSeparator,

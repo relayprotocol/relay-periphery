@@ -11,6 +11,12 @@ import {IUniswapV2Router02} from "../interfaces/IUniswapV2Router02.sol";
 import {TestERC20} from "../mocks/TestERC20.sol";
 import {TestERC20Permit} from "../mocks/TestERC20Permit.sol";
 
+// Helpers structs
+
+struct RelayerWitness {
+    address relayer;
+}
+
 contract BaseTest is Test {
     // Accounts
     Account alice;
@@ -35,11 +41,11 @@ contract BaseTest is Test {
 
     // For Permit2
     bytes32 public PERMIT2_DOMAIN_SEPARATOR;
-    bytes32 public constant _TOKEN_PERMISSIONS_TYPEHASH =
+    bytes32 public constant _PERMIT2_TOKEN_PERMISSIONS_TYPEHASH =
         keccak256("TokenPermissions(address token,uint256 amount)");
-    string public constant _PERMIT_WITNESS_TRANSFER_TYPEHASH_STUB =
+    string public constant _PERMIT2_WITNESS_TRANSFER_TYPEHASH_STUB =
         "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,";
-    string public constant _PERMIT_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB =
+    string public constant _PERMIT2_BATCH_WITNESS_TRANSFER_TYPEHASH_STUB =
         "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,";
 
     function setUp() public virtual {
@@ -77,8 +83,8 @@ contract BaseTest is Test {
         return Account({addr: addr, key: pk});
     }
 
-    // Sign a regular permit2
-    function getPermitTransferSignature(
+    // Sign a permit2
+    function getPermit2TransferSignature(
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         address spender,
         uint256 privateKey,
@@ -91,7 +97,7 @@ contract BaseTest is Test {
         for (uint256 i = 0; i < permit.permitted.length; ++i) {
             tokenPermissions[i] = keccak256(
                 bytes.concat(
-                    _TOKEN_PERMISSIONS_TYPEHASH,
+                    _PERMIT2_TOKEN_PERMISSIONS_TYPEHASH,
                     abi.encode(permit.permitted[i])
                 )
             );
@@ -118,7 +124,7 @@ contract BaseTest is Test {
     }
 
     // Sign a witness permit2
-    function getPermitWitnessTransferSignature(
+    function getPermit2WitnessTransferSignature(
         ISignatureTransfer.PermitTransferFrom memory permit,
         address spender,
         uint256 privateKey,
@@ -127,7 +133,7 @@ contract BaseTest is Test {
         bytes32 domainSeparator
     ) internal pure returns (bytes memory signature) {
         bytes32 tokenPermissions = keccak256(
-            abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted)
+            abi.encode(_PERMIT2_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted)
         );
 
         bytes32 hashToSign = keccak256(
@@ -152,7 +158,7 @@ contract BaseTest is Test {
     }
 
     // Sign a batch witness permit2
-    function getPermitBatchWitnessSignature(
+    function getPermit2BatchWitnessSignature(
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         address spender,
         uint256 privateKey,
@@ -165,7 +171,7 @@ contract BaseTest is Test {
         );
         for (uint256 i = 0; i < permit.permitted.length; ++i) {
             tokenPermissions[i] = keccak256(
-                abi.encode(_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted[i])
+                abi.encode(_PERMIT2_TOKEN_PERMISSIONS_TYPEHASH, permit.permitted[i])
             );
         }
 

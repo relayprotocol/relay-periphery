@@ -12,7 +12,7 @@ import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 
 import {IERC3009} from "./interfaces/IERC3009.sol";
 import {IRelayRouterV3} from "./interfaces/IRelayRouterV3.sol";
-import {Call3Value, Permit, Permit3009, Result} from "./utils/RelayStructs.sol";
+import {Call3Value, Permit2612, Permit3009, Result} from "./utils/RelayStructs.sol";
 
 contract RelayApprovalProxyV3 is Ownable {
     using SafeERC20 for IERC20;
@@ -46,7 +46,7 @@ contract RelayApprovalProxyV3 is Ownable {
         );
     string public constant _RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
-    bytes32 public constant _EIP_712_RELAYER_WITNESS_TYPE_HASH =
+    bytes32 public constant _RELAYER_WITNESS_TYPEHASH =
         keccak256(
             "RelayerWitness(address relayer,address refundTo,address nftRecipient,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
@@ -130,7 +130,7 @@ contract RelayApprovalProxyV3 is Ownable {
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @return returnData The return data from the multicall
     function permitTransferAndMulticall(
-        Permit[] calldata permits,
+        Permit2612[] calldata permits,
         Call3Value[] calldata calls,
         address refundTo,
         address nftRecipient
@@ -141,7 +141,7 @@ contract RelayApprovalProxyV3 is Ownable {
         }
 
         for (uint256 i = 0; i < permits.length; i++) {
-            Permit memory permit = permits[i];
+            Permit2612 memory permit = permits[i];
 
             // Revert if the permit owner is not the msg.sender
             if (permit.owner != msg.sender) {
@@ -256,10 +256,16 @@ contract RelayApprovalProxyV3 is Ownable {
                 permit.value,
                 permit.validAfter,
                 permit.validBefore,
-                _getCallsHash(calls),
+                _getRelayerWitnessHash(refundTo, nftRecipient, calls),
                 permit.v,
                 permit.r,
                 permit.s
+            );
+
+            // Transfer the tokens to the router
+            IERC20(tokens[i]).safeTransfer(
+                router,
+                permit.value
             );
         }
 
@@ -273,7 +279,7 @@ contract RelayApprovalProxyV3 is Ownable {
 
     /// @notice Internal function to get the hash of a list of `Call3Value` structs
     /// @param calls The calls to perform
-    function _getCallsHash(Call3Value[] calldata calls) internal pure returns (bytes32) {
+    function _getCallsHash(Call3Value[] memory calls) internal pure returns (bytes32) {
         // Create an array of keccak256 hashes of the calls
         bytes32[] memory callHashes = new bytes32[](calls.length);
         for (uint256 i = 0; i < calls.length; i++) {
@@ -291,6 +297,22 @@ contract RelayApprovalProxyV3 is Ownable {
 
         return keccak256(abi.encodePacked(callHashes));
     }
+    
+    /// @notice Internal function to get the hash of a relayer witness
+    /// @param refundTo The refundTo address
+    /// @param nftRecipient The nftRecipient address
+    /// @param calls The calls to be executed
+    function _getRelayerWitnessHash(address refundTo, address nftRecipient, Call3Value[] memory calls) internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                _RELAYER_WITNESS_TYPEHASH,
+                msg.sender,
+                refundTo,
+                nftRecipient,
+                _getCallsHash(calls)
+            )
+        );
+    }
 
     /// @notice Internal function to handle a permit batch transfer
     /// @param user The address of the user
@@ -307,16 +329,7 @@ contract RelayApprovalProxyV3 is Ownable {
         Call3Value[] calldata calls,
         bytes memory permitSignature
     ) internal {
-        // Create the witness that should be signed over
-        bytes32 witness = keccak256(
-            abi.encode(
-                _EIP_712_RELAYER_WITNESS_TYPE_HASH,
-                msg.sender,
-                refundTo,
-                nftRecipient,
-                _getCallsHash(calls)
-            )
-        );
+        bytes32 witness = _getRelayerWitnessHash(refundTo, nftRecipient, calls);
 
         // Create the SignatureTransferDetails array
         ISignatureTransfer.SignatureTransferDetails[]

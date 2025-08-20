@@ -8,7 +8,7 @@ struct Call3Value {
     bytes callData;
 }
 
-struct Permit {
+struct Permit2612 {
     address token;
     address owner;
     uint256 value;
