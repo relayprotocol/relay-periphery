@@ -1,4 +1,4 @@
-IMPORTANT! Make sure you're on commit [`e6b9b5e9`](https://github.com/relayprotocol/relay-periphery/tree/e6b9b5e9)!
+IMPORTANT! Make sure you're on commit [`6b4cf150`](https://github.com/relayprotocol/relay-periphery/tree/6b4cf150)!
 
 There is a single deployment script that needs to be triggered for every new chain, `./script/RouterAndApprovalProxyV2_1Deployer.s.sol` or `./script/RouterAndApprovalProxyV2_1Deployer_NonTstore.s.sol` (depending on the EVM version supported by the chain)
 
