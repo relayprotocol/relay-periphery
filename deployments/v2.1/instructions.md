@@ -39,3 +39,10 @@ forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/v2/RelayApprova
 ```
 
 In case `forge` doesn't have any default explorer for a given chain, make sure to pass the following extra arguments to the `forge verify-contract` commands: `--verifier-url $VERIFIER_URL --etherscan-api-key $VERIFIER_API_KEY`.
+
+### Legacy EVM versions deployment
+
+Some chains do not support the default EVM version used by the contracts (Cancun). In that case, we default to compiling using the London EVM version. Since that version does not support features like transient storage, we need to use the `_NonTstore` version of the `RelayRouterV2_1`. This implies two things:
+
+- use the `RouterAndApprovalProxyV2_1_NonTstoreDeployer` script
+- adjust the `forge script` command by passing `--contracts src/v2.1/Relay*` (this will result in `forge` skipping compilation for some files that use unsupported features)

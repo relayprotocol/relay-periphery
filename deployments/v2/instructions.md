@@ -1,4 +1,4 @@
-IMPORTANT! Make sure you're on commit [`7cea29ad`](https://github.com/relayprotocol/relay-periphery/tree/7cea29ad)!
+IMPORTANT! Make sure you're on commit [`c2fecd0`](https://github.com/relayprotocol/relay-periphery/tree/c2fecd0)!
 
 There are two deployment scripts that need to be triggered for every new chain:
 
@@ -62,3 +62,10 @@ forge verify-contract --chain $CHAIN $APPROVAL_PROXY ./src/v2/ApprovalProxy.sol:
 ```
 
 In case `forge` doesn't have any default explorer for a given chain, make sure to pass the following extra arguments to the `forge verify-contract` commands: `--verifier-url $VERIFIER_URL --etherscan-api-key $VERIFIER_API_KEY`.
+
+### Legacy EVM versions deployment
+
+Some chains do not support the default EVM version used by the contracts (Cancun). In that case, we default to compiling using the London EVM version. Since that version does not support features like transient storage, we need to use the `_NonTstore` version of the `RelayRouter`. This implies two things:
+
+- use the `RelayRouter_NonTstoreV2Deployer` script
+- adjust the `forge script` command by passing `--contracts src/v2*` (this will result in `forge` skipping compilation for some files that use unsupported features)
