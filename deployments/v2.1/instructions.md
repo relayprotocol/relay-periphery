@@ -32,10 +32,10 @@ The above script should do the deployment and verification altogether. However, 
 
 ```bash
 # RelayRouter
-forge verify-contract --chain $CHAIN $RELAY_ROUTER ./src/v2/RelayRouterV2_1.sol:RelayRouterV2_1
+forge verify-contract --chain $CHAIN $RELAY_ROUTER ./src/v2.1/RelayRouterV2_1.sol:RelayRouterV2_1
 
 # RelayApprovalProxy
-forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/v2/RelayApprovalProxyV2_1.sol:RelayApprovalProxyV2_1 --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
+forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/v2.1/RelayApprovalProxyV2_1.sol:RelayApprovalProxyV2_1 --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
 ```
 
 In case `forge` doesn't have any default explorer for a given chain, make sure to pass the following extra arguments to the `forge verify-contract` commands: `--verifier-url $VERIFIER_URL --etherscan-api-key $VERIFIER_API_KEY`.
