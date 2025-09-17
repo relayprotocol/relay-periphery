@@ -18,5 +18,15 @@
     "relayApprovalProxy": "0x58cc3e0aa6cd7bf795832a225179ec2d848ce3e7",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  "plasma": {
+    "chainId": 9745,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "cancun",
+    "explorerUrl": "https://plasmascan.to",
+    "relayRouter": "0x3ec130b627944cad9b2750300ecb0a695da522b6",
+    "relayApprovalProxy": "0x58cc3e0aa6cd7bf795832a225179ec2d848ce3e7",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   }
 }
