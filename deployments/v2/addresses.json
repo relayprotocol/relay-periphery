@@ -50,21 +50,21 @@
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
-  "polygon": {
-    "chainId": 137,
-    "compilerVersion": "0.8.28",
-    "evmVersion": "cancun",
-    "explorerUrl": "https://polygonscan.com/",
-    "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
-    "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
-    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
-  },
   "unichain": {
     "chainId": 130,
     "compilerVersion": "0.8.28",
     "evmVersion": "cancun",
     "explorerUrl": "https://uniscan.xyz",
+    "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
+    "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  "polygon": {
+    "chainId": 137,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "cancun",
+    "explorerUrl": "https://polygonscan.com/",
     "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
     "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
@@ -309,17 +309,6 @@
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
-  "game7": {
-    "chainId": 2187,
-    "compilerVersion": "0.8.28",
-    "evmVersion": "cancun",
-    "explorerUrl": "https://mainnet.game7.io",
-    "customVerificationFlags": "--chain 2187 --verifier blockscout --verifier-url https://mainnet.game7.io/api",
-    "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
-    "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
-    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
-  },
   "abstract": {
     "chainId": 2741,
     "compilerVersion": "0.8.28",
@@ -360,17 +349,6 @@
     "additionalNotes": "When deploying / compiling, make sure to use the non-tstore version of the script / contracts (RelayRouter_NonTstore)",
     "relayRouter_nonTstore": "0x113a327221d2c4660684449bfc39bc14ad1aaf38",
     "approvalProxy": "0xcd740b0e005cb8647f9baf4febedc8753ceef861",
-    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
-  },
-  "ham": {
-    "chainId": 5112,
-    "compilerVersion": "0.8.28",
-    "evmVersion": "cancun",
-    "explorerUrl": "https://explorer.ham.fun",
-    "customVerificationFlags": "--chain 5112 --verifier blockscout --verifier-url https://explorer.ham.fun/api",
-    "relayRouter": "0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222",
-    "approvalProxy": "0xbbbfd134e9b44bfb5123898ba36b01de7ab93d98",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
@@ -749,7 +727,7 @@
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
-  "lorchain": {
+  "lordchain": {
     "chainId": 84530008,
     "compilerVersion": "0.8.28",
     "evmVersion": "cancun",
