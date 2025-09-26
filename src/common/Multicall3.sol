@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.12;
 
-import {Call3Value, Result} from "./RelayV2_1Structs.sol";
+struct Call3Value {
+    address target;
+    bool allowFailure;
+    uint256 value;
+    bytes callData;
+}
+
+struct Result {
+    bool success;
+    bytes returnData;
+}
 
 /// @title Multicall3
 /// @notice Aggregate results from multiple function calls

@@ -7,9 +7,9 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 
 import {Call3Value, Multicall3, Result} from "../common/Multicall3.sol";
-import {ReentrancyGuardMsgSender} from "../common/ReentrancyGuardMsgSender.sol";
+import {ReentrancyGuardMsgSender_NonTstore} from "../common/ReentrancyGuardMsgSender_NonTstore.sol";
 
-contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
+contract RelayRouterV3_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTstore {
     using SafeTransferLib for address;
 
     /// @notice Revert if this contract is set as the recipient
@@ -33,6 +33,9 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
     /// @notice Protocol event to be emitted when transferring native tokens
     event SolverNativeTransfer(address to, uint256 amount);
 
+    /// @notice Emitted when pulling funds from a user
+    event RouterPush(address to, address currency, uint256 amount, bytes32 id);
+
     uint256 RECIPIENT_STORAGE_SLOT = uint256(keccak256("RelayRouter.recipient")) - 1;
 
     constructor() {}
@@ -48,7 +51,8 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
     /// @param calls The calls to perform
     /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
-    function multicall(Call3Value[] calldata calls, address refundTo, address nftRecipient)
+    /// @param id The id to associate the call to
+    function multicall(Call3Value[] calldata calls, address refundTo, address nftRecipient, bytes32 id)
         public
         payable
         virtual
@@ -67,7 +71,7 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
         _clearRecipient();
 
         // Refund any leftover native tokens to the sender
-        cleanupNative(0, refundTo);
+        cleanupNative(0, refundTo, id);
     }
 
     /// @notice Send leftover ERC20 tokens to recipients
@@ -76,7 +80,8 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
     /// @param tokens The addresses of the ERC20 tokens
     /// @param recipients The addresses to refund the tokens to
     /// @param amounts The amounts to send
-    function cleanupErc20s(address[] calldata tokens, address[] calldata recipients, uint256[] calldata amounts)
+    /// @param id The id to associate the call to
+    function cleanupErc20s(address[] calldata tokens, address[] calldata recipients, uint256[] calldata amounts, bytes32 id)
         public
         virtual
     {
@@ -95,6 +100,8 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
             if (amount > 0) {
                 // Transfer the token to the recipient address
                 token.safeTransfer(recipient, amount);
+
+                emit RouterPush(recipient, token, amount, id);
             }
         }
     }
@@ -106,11 +113,13 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
     /// @param tos The target addresses for the calls
     /// @param datas The data for the calls
     /// @param amounts The amounts to send
+    /// @param id The id to associate the call to
     function cleanupErc20sViaCall(
         address[] calldata tokens,
         address[] calldata tos,
         bytes[] calldata datas,
-        uint256[] calldata amounts
+        uint256[] calldata amounts,
+        bytes32 id
     ) public virtual {
         // Revert if array lengths do not match
         if (tokens.length != amounts.length || amounts.length != tos.length || tos.length != datas.length) {
@@ -134,6 +143,8 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
                 if (!success) {
                     revert CallFailed();
                 }
+
+                emit RouterPush(to, token, amount, id);
             }
         }
     }
@@ -142,7 +153,8 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
     /// @dev Set amount to 0 to transfer the full balance. Set recipient to address(0) to transfer to msg.sender
     /// @param amount The amount of native tokens to transfer
     /// @param recipient The recipient address
-    function cleanupNative(uint256 amount, address recipient) public virtual {
+    /// @param id The id to associate the call to
+    function cleanupNative(uint256 amount, address recipient, bytes32 id) public virtual {
         // If recipient is address(0), set to msg.sender
         address recipientAddr = recipient == address(0) ? msg.sender : recipient;
 
@@ -151,6 +163,7 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
         if (amountToTransfer > 0) {
             recipientAddr.safeTransferETH(amountToTransfer);
             emit SolverNativeTransfer(recipientAddr, amountToTransfer);
+            emit RouterPush(recipientAddr, address(0), amountToTransfer, id);
         }
     }
 
@@ -159,7 +172,8 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
     /// @param amount The amount of native tokens to transfer
     /// @param to The target address of the call
     /// @param data The data for the call
-    function cleanupNativeViaCall(uint256 amount, address to, bytes calldata data) public virtual {
+    /// @param id The id to associate the call to
+    function cleanupNativeViaCall(uint256 amount, address to, bytes calldata data, bytes32 id) public virtual {
         uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
 
         if (amountToTransfer > 0) {
@@ -167,6 +181,8 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
             if (!success) {
                 revert CallFailed();
             }
+
+            emit RouterPush(to, address(0), amountToTransfer, id);
         }
     }
 
@@ -184,7 +200,7 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
         uint256 recipientStorageSlot = RECIPIENT_STORAGE_SLOT;
         uint256 recipientValue = uint256(uint160(recipient));
         assembly {
-            tstore(recipientStorageSlot, recipientValue)
+            sstore(recipientStorageSlot, recipientValue)
         }
     }
 
@@ -194,7 +210,7 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
         uint256 value;
 
         assembly {
-            value := tload(recipientStorageSlot)
+            value := sload(recipientStorageSlot)
         }
 
         // Get the recipient from storage
@@ -211,7 +227,7 @@ contract RelayRouterV2_1 is Multicall3, ReentrancyGuardMsgSender {
         // Clear the recipient in storage
         uint256 recipientStorageSlot = RECIPIENT_STORAGE_SLOT;
         assembly {
-            tstore(recipientStorageSlot, 0)
+            sstore(recipientStorageSlot, 0)
         }
     }
 

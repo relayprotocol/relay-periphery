@@ -1,0 +1,20 @@
+{
+  "lib/0x-settler": {
+    "rev": "2051c492f0350acb7b50118248c2afe24274a5ac"
+  },
+  "lib/forge-std": {
+    "rev": "1714bee72e286e73f76e320d110e0eaf5c4e649d"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+  },
+  "lib/permit2-relay": {
+    "rev": "c4c481b643849db988d2f08610f37da7efcd2bda"
+  },
+  "lib/solady": {
+    "rev": "f74d6b6cec7e5f72f57949dfa5d51b632bcc29a6"
+  },
+  "lib/trustlessPermit": {
+    "rev": "07a51a046580c5a6c7bb71cbf4cf6738e85ab310"
+  }
+}

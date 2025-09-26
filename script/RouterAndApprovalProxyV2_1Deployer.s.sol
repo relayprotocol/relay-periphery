@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import "forge-std/Script.sol";
+import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 
 import {RelayApprovalProxyV2_1} from "../src/v2.1/RelayApprovalProxyV2_1.sol";

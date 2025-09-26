@@ -10,8 +10,8 @@ import {EIP712} from "solady/src/utils/EIP712.sol";
 
 import {Call3Value} from "../../src/common/Multicall3.sol";
 import {Permit2612, Permit3009} from "../../src/common/Permits.sol";
-import {RelayApprovalProxyV2_1} from "../../src/v2.1/RelayApprovalProxyV2_1.sol";
-import {RelayRouterV2_1} from "../../src/v2.1/RelayRouterV2_1.sol";
+import {RelayApprovalProxyV3} from "../../src/v3/RelayApprovalProxyV3.sol";
+import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
 
 import {BaseTest} from "../base/BaseTest.sol";
 import {IUniswapV2Router01} from "../interfaces/IUniswapV2Router02.sol";
@@ -22,7 +22,7 @@ import {TestERC721_ERC20PaymentToken} from "../mocks/TestERC721_ERC20PaymentToke
 
 // Tests
 
-contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
+contract RouterAndApprovalV3Test is BaseTest, EIP712 {
     using SafeERC20 for IERC20;
 
     // Errors
@@ -38,8 +38,8 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
     IAllowanceHolder constant ALLOWANCE_HOLDER = IAllowanceHolder(payable(0x0000000000001fF3684f28c67538d4D072C22734));
 
     // Fields to be set
-    RelayRouterV2_1 router;
-    RelayApprovalProxyV2_1 approvalProxy;
+    RelayRouterV3 router;
+    RelayApprovalProxyV3 approvalProxy;
 
     // Various type-hashes / type-strings
     bytes32 public constant _CALL3VALUE_TYPEHASH =
@@ -71,8 +71,8 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         super.setUp();
 
         // Deploy router and approval-proxy contracts
-        router = new RelayRouterV2_1();
-        approvalProxy = new RelayApprovalProxyV2_1(address(this), address(router), address(PERMIT2));
+        router = new RelayRouterV3();
+        approvalProxy = new RelayApprovalProxyV3(address(this), address(router), address(PERMIT2));
 
         // Mint tokens to alice
         erc20_1.mint(alice.addr, 1 ether);
@@ -145,11 +145,11 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         // Only the "relayer" (in this case bob) can use the permit via the approval-proxy
         vm.prank(cal.addr);
         vm.expectRevert(InvalidSigner.selector);
-        approvalProxy.permit2TransferAndMulticall(alice.addr, permit, calls, alice.addr, address(0), permitSignature);
+        approvalProxy.permit2TransferAndMulticall(alice.addr, permit, calls, alice.addr, address(0), bytes32(0), permitSignature);
 
         // Call the router
         vm.prank(bob.addr);
-        approvalProxy.permit2TransferAndMulticall(alice.addr, permit, calls, alice.addr, address(0), permitSignature);
+        approvalProxy.permit2TransferAndMulticall(alice.addr, permit, calls, alice.addr, address(0), bytes32(0), permitSignature);
 
         // Funds transferred as part of the calls are in bob's wallet
         assertEq(erc20_1.balanceOf(bob.addr), 0.03 ether);
@@ -187,7 +187,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         uint256 aliceUsdcBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.multicall{value: 1 ether}(calls, address(0), address(0));
+        router.multicall{value: 1 ether}(calls, address(0), address(0), bytes32(0));
 
         uint256 aliceEthBalanceAfter = alice.addr.balance;
         uint256 aliceUsdcBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -220,7 +220,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         uint256 aliceUsdcBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.multicall{value: 2 ether}(calls, address(0), address(0));
+        router.multicall{value: 2 ether}(calls, address(0), address(0), bytes32(0));
 
         uint256 aliceEthBalanceAfter = alice.addr.balance;
         uint256 aliceUsdcBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -260,7 +260,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         uint256 routerUsdcBalanceBefore = IERC20(USDC).balanceOf(address(router));
 
         vm.prank(alice.addr);
-        router.multicall{value: 1 ether}(calls, address(0), address(0));
+        router.multicall{value: 1 ether}(calls, address(0), address(0), bytes32(0));
 
         uint256 aliceEthBalanceAfterMulticall = alice.addr.balance;
         uint256 routerUsdcBalanceAfterMulticall = IERC20(USDC).balanceOf(address(router));
@@ -277,7 +277,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         recipients[0] = alice.addr;
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 0;
-        router.cleanupErc20s(tokens, recipients, amounts);
+        router.cleanupErc20s(tokens, recipients, amounts, bytes32(0));
 
         uint256 aliceUsdcBalanceAfterCleanup = IERC20(USDC).balanceOf(alice.addr);
         uint256 routerUsdcBalanceAfterCleanup = IERC20(USDC).balanceOf(address(this));
@@ -312,7 +312,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         vm.expectRevert(
             abi.encodeWithSelector(IERC20Errors.ERC20InsufficientAllowance.selector, address(router), 0, 1 ether)
         );
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0));
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0), bytes32(0));
 
         // Encode router calls
 
@@ -326,7 +326,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         // This time the call should work because we're using "transfer(bob)" which doesn't require any approval
 
         vm.prank(alice.addr);
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0));
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0), bytes32(0));
 
         assertEq(erc20_1.balanceOf(bob.addr), 1 ether);
     }
@@ -371,7 +371,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         amounts[0] = 1000 * 10 ** 6;
 
         vm.prank(alice.addr);
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0));
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0), bytes32(0));
 
         assertEq(IERC20(USDC).balanceOf(alice.addr), 0);
         assertEq(IERC20(USDC).balanceOf(address(router)), 0);
@@ -408,20 +408,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         vm.expectRevert(
             abi.encodeWithSelector(IERC20Errors.ERC20InsufficientBalance.selector, address(router), 0, 1 ether)
         );
-        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0));
-    }
-
-    function testApprovalProxy__SetRouter() public {
-        // Only the owner can set a new router
-        vm.expectRevert(Unauthorized.selector);
-
-        vm.prank(alice.addr);
-        approvalProxy.setRouter(alice.addr);
-
-        // Ensure an event is emitted
-        vm.expectEmit();
-        emit RouterUpdated(bob.addr);
-        approvalProxy.setRouter(bob.addr);
+        approvalProxy.transferAndMulticall(tokens, amounts, calls, alice.addr, address(0), bytes32(0));
     }
 
     function testApprovalProxy__PermitTransferAndMulticall_Eip2612() public {
@@ -458,10 +445,10 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         // Only the permit owner is allowed to use their permit
         vm.prank(bob.addr);
         vm.expectRevert(Unauthorized.selector);
-        approvalProxy.permitTransferAndMulticall(permits, calls, bob.addr, address(0));
+        approvalProxy.permitTransferAndMulticall(permits, calls, bob.addr, address(0), bytes32(0));
 
         vm.prank(alice.addr);
-        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr, address(0));
+        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr, address(0), bytes32(0));
 
         assertEq(erc20_permit.balanceOf(alice.addr), 0);
         assertEq(erc20_permit.balanceOf(bob.addr), 1 ether);
@@ -505,7 +492,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         // Frontran permits are successfully skipped
 
         vm.prank(alice.addr);
-        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr, address(0));
+        approvalProxy.permitTransferAndMulticall(permits, calls, alice.addr, address(0), bytes32(0));
 
         assertEq(erc20_permit.balanceOf(alice.addr), 0);
         assertEq(erc20_permit.balanceOf(bob.addr), 1 ether);
@@ -561,7 +548,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         // Replace some fields and expect the router call to fail
         vm.expectRevert(InvalidSigner.selector);
         vm.prank(bob.addr);
-        approvalProxy.permit2TransferAndMulticall(alice.addr, permit, calls, bob.addr, bob.addr, permitSignature);
+        approvalProxy.permit2TransferAndMulticall(alice.addr, permit, calls, bob.addr, bob.addr, bytes32(0), permitSignature);
     }
 
     function testRouter_USDTCleanupWithSafeERC20() public {
@@ -578,7 +565,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 0;
 
-        bytes memory calldata1 = abi.encodeWithSelector(router.cleanupErc20s.selector, tokens, recipients, amounts);
+        bytes memory calldata1 = abi.encodeWithSelector(router.cleanupErc20s.selector, tokens, recipients, amounts, bytes32(0));
 
         // Encode router calls
 
@@ -588,7 +575,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         uint256 bobUsdtBalanceBefore = IERC20(USDT).balanceOf(bob.addr);
 
         vm.prank(bob.addr);
-        router.multicall(calls, address(0), address(0));
+        router.multicall(calls, address(0), address(0), bytes32(0));
 
         assertEq(IERC20(USDT).balanceOf(bob.addr) - bobUsdtBalanceBefore, 1000 * 10 ** 6);
     }
@@ -598,7 +585,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         vm.deal(address(router), 1 ether);
 
         bytes memory calldata1 =
-            abi.encodeWithSelector(router.cleanupNativeViaCall.selector, 0, bob.addr, bytes("0x1234567890"));
+            abi.encodeWithSelector(router.cleanupNativeViaCall.selector, 0, bob.addr, bytes("0x1234567890"), bytes32(0));
 
         Call3Value[] memory calls = new Call3Value[](1);
         calls[0] = Call3Value({target: address(router), allowFailure: false, value: 0, callData: calldata1});
@@ -606,7 +593,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         uint256 bobBalanceBefore = address(bob.addr).balance;
 
         vm.prank(alice.addr);
-        router.multicall(calls, address(0), address(0));
+        router.multicall(calls, address(0), address(0), bytes32(0));
 
         assertEq(address(bob.addr).balance - bobBalanceBefore, 1 ether);
     }
@@ -627,7 +614,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         calls[0] = Call3Value({target: address(erc721), allowFailure: false, value: 0, callData: calldata1});
 
         vm.prank(alice.addr);
-        router.multicall(calls, address(0), alice.addr);
+        router.multicall(calls, address(0), alice.addr, bytes32(0));
 
         // The router should have automatically forward the minted token to the sender
         assertEq(erc721.ownerOf(1), alice.addr);
@@ -652,7 +639,7 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
         calls[1] = Call3Value({target: address(erc721), allowFailure: false, value: 0, callData: calldata2});
 
         vm.prank(alice.addr);
-        router.multicall(calls, address(0), alice.addr);
+        router.multicall(calls, address(0), alice.addr, bytes32(0));
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
@@ -699,10 +686,10 @@ contract RouterAndApprovalV2_1Test is BaseTest, EIP712 {
 
         vm.prank(bob.addr);
         vm.expectRevert("FiatTokenV2: invalid signature");
-        approvalProxy.permit3009TransferAndMulticall(permits, tokens, calls, bob.addr, alice.addr);
+        approvalProxy.permit3009TransferAndMulticall(permits, tokens, calls, bob.addr, alice.addr, bytes32(0));
 
         vm.prank(alice.addr);
-        approvalProxy.permit3009TransferAndMulticall(permits, tokens, calls, alice.addr, alice.addr);
+        approvalProxy.permit3009TransferAndMulticall(permits, tokens, calls, alice.addr, alice.addr, bytes32(0));
     }
 
     // Utility methods
