@@ -1,6 +1,6 @@
 #!/bin/bash
 
-forge script ./script/v2.1/RouterAndApprovalProxyV2_1Deployer.s.sol:RouterAndApprovalProxyV2_1Deployer \
+forge script ./script/v3/RouterAndApprovalProxyV3Deployer.s.sol:RouterAndApprovalProxyV3Deployer \
     --slow \
     --broadcast \
     --private-key $DEPLOYER_PK \

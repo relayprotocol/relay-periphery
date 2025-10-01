@@ -2,7 +2,7 @@
 
 export FOUNDRY_PROFILE=london
 
-forge script ./script/RouterAndApprovalProxyV2_1_NonTstore_Deployer.s.sol:RouterAndApprovalProxyV2_1_NonTstore_Deployer \
+forge script ./script/v2.1/RouterAndApprovalProxyV2_1_NonTstore_Deployer.s.sol:RouterAndApprovalProxyV2_1_NonTstore_Deployer \
     --slow \
     --broadcast \
     --contracts ./src/v2.1/Relay \
