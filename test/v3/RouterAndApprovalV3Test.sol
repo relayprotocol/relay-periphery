@@ -49,11 +49,11 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
     bytes32 public constant _RELAYER_WITNESS_TYPEHASH =
         keccak256(
-            "RelayerWitness(address relayer,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+            "RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
     bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_TYPEHASH =
         keccak256(
-            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
+            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 public constant _PERMIT2_BATCH_TRANSFER_FROM_TYPEHASH =
         keccak256(
@@ -61,7 +61,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
     bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_BATCH_TYPEHASH =
         keccak256(
-            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
+            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 private constant _PERMIT2612_TYPEHASH =
         keccak256(
@@ -72,7 +72,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             "ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
         );
     string public constant _PERMIT2_RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
+        "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
 
     // Setup
     function setUp() public override {
@@ -196,6 +196,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
                 _RELAYER_WITNESS_TYPEHASH,
                 bob.addr,
                 alice.addr,
+                alice.addr,
                 bytes(""),
                 _getCallsHash(calls)
             )
@@ -217,6 +218,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             permit,
             calls,
             alice.addr,
+            alice.addr,
             bytes(""),
             permitSignature
         );
@@ -227,6 +229,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             alice.addr,
             permit,
             calls,
+            alice.addr,
             alice.addr,
             bytes(""),
             permitSignature
@@ -277,7 +280,12 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         uint256 aliceUsdcBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.multicall{value: 1 ether}(calls, address(0));
+        router.multicall{value: 1 ether}(
+            calls,
+            address(0),
+            address(0),
+            bytes("")
+        );
 
         uint256 aliceEthBalanceAfter = alice.addr.balance;
         uint256 aliceUsdcBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -328,7 +336,12 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         uint256 aliceUsdcBalanceBefore = IERC20(USDC).balanceOf(alice.addr);
 
         vm.prank(alice.addr);
-        router.multicall{value: 2 ether}(calls, address(0));
+        router.multicall{value: 2 ether}(
+            calls,
+            address(0),
+            address(0),
+            bytes("")
+        );
 
         uint256 aliceEthBalanceAfter = alice.addr.balance;
         uint256 aliceUsdcBalanceAfter = IERC20(USDC).balanceOf(alice.addr);
@@ -399,7 +412,12 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
 
         vm.prank(alice.addr);
-        router.multicall{value: 1 ether}(calls, address(0));
+        router.multicall{value: 1 ether}(
+            calls,
+            address(0),
+            address(0),
+            bytes("")
+        );
 
         uint256 aliceEthBalanceAfterMulticall = alice.addr.balance;
         uint256 routerUsdcBalanceAfterMulticall = IERC20(USDC).balanceOf(
@@ -480,6 +498,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             amounts,
             calls,
             alice.addr,
+            alice.addr,
             bytes("")
         );
 
@@ -503,6 +522,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             tokens,
             amounts,
             calls,
+            alice.addr,
             alice.addr,
             bytes("")
         );
@@ -571,6 +591,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             amounts,
             calls,
             alice.addr,
+            alice.addr,
             bytes("")
         );
 
@@ -628,6 +649,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             amounts,
             calls,
             alice.addr,
+            alice.addr,
             bytes("")
         );
     }
@@ -683,7 +705,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         approvalProxy.permitTransferAndMulticall(
             permits,
             calls,
-            bob.addr,
+            alice.addr,
+            alice.addr,
             bytes("")
         );
 
@@ -691,6 +714,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         approvalProxy.permitTransferAndMulticall(
             permits,
             calls,
+            alice.addr,
             alice.addr,
             bytes("")
         );
@@ -764,6 +788,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         approvalProxy.permitTransferAndMulticall(
             permits,
             calls,
+            alice.addr,
             alice.addr,
             bytes("")
         );
@@ -849,6 +874,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
                 _RELAYER_WITNESS_TYPEHASH,
                 bob.addr,
                 alice.addr,
+                alice.addr,
                 bytes(""),
                 _getCallsHash(calls)
             )
@@ -869,6 +895,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             alice.addr,
             permit,
             calls,
+            bob.addr,
             bob.addr,
             bytes(""),
             permitSignature
@@ -910,7 +937,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         uint256 bobUsdtBalanceBefore = IERC20(USDT).balanceOf(bob.addr);
 
         vm.prank(bob.addr);
-        router.multicall(calls, address(0));
+        router.multicall(calls, address(0), address(0), bytes(""));
 
         assertEq(
             IERC20(USDT).balanceOf(bob.addr) - bobUsdtBalanceBefore,
@@ -941,7 +968,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         uint256 bobBalanceBefore = address(bob.addr).balance;
 
         vm.prank(alice.addr);
-        router.multicall(calls, address(0));
+        router.multicall(calls, address(0), address(0), bytes(""));
 
         assertEq(address(bob.addr).balance - bobBalanceBefore, 1 ether);
     }
@@ -971,7 +998,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         });
 
         vm.prank(alice.addr);
-        router.multicall(calls, alice.addr);
+        router.multicall(calls, alice.addr, alice.addr, bytes(""));
 
         // The router should have automatically forward the minted token to the sender
         assertEq(erc721.ownerOf(1), alice.addr);
@@ -1010,7 +1037,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         });
 
         vm.prank(alice.addr);
-        router.multicall(calls, alice.addr);
+        router.multicall(calls, alice.addr, alice.addr, bytes(""));
 
         assertEq(erc721.ownerOf(1), alice.addr);
     }
@@ -1037,6 +1064,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         });
 
         bytes32 witness = _getRelayerWitnessHash(
+            alice.addr,
             alice.addr,
             alice.addr,
             bytes(""),
@@ -1086,6 +1114,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             tokens,
             calls,
             bob.addr,
+            alice.addr,
             bytes("")
         );
 
@@ -1094,6 +1123,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             permits,
             tokens,
             calls,
+            alice.addr,
             alice.addr,
             bytes("")
         );
@@ -1123,6 +1153,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
     function _getRelayerWitnessHash(
         address relayer,
+        address refundTo,
         address nftRecipient,
         bytes memory metadata,
         Call3Value[] memory calls
@@ -1132,6 +1163,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
                 abi.encode(
                     _RELAYER_WITNESS_TYPEHASH,
                     relayer,
+                    refundTo,
                     nftRecipient,
                     metadata,
                     _getCallsHash(calls)

@@ -53,10 +53,14 @@ contract RelayRouterV3_NonTstore is
     ///         All calls to ERC721s and ERC1155s in the multicall will have the same recipient set in recipient
     ///         Be sure to transfer ERC20s or native tokens out of the router as part of the multicall
     /// @param calls The calls to perform
+    /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
+    /// @param metadata Additional data to associate the call to
     function multicall(
         Call3Value[] calldata calls,
-        address nftRecipient
+        address refundTo,
+        address nftRecipient,
+        bytes calldata metadata
     ) public payable virtual nonReentrant returns (Result[] memory returnData) {
         // Set the NFT recipient if provided
         if (nftRecipient != address(0)) {
@@ -68,6 +72,9 @@ contract RelayRouterV3_NonTstore is
 
         // Clear the recipient in storage
         _clearRecipient();
+
+        // Refund any leftover native tokens to the sender
+        cleanupNative(0, refundTo, metadata);
     }
 
     /// @notice Send leftover ERC20 tokens to recipients

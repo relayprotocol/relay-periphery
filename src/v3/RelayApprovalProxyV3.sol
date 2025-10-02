@@ -25,6 +25,9 @@ contract RelayApprovalProxyV3 is Ownable {
     /// @notice Revert if the native transfer fails
     error NativeTransferFailed();
 
+    /// @notice Revert if the refundTo address is zero address
+    error RefundToCannotBeZeroAddress();
+
     /// @notice Emitted when pulling funds from a user
     event RouterPull(
         address from,
@@ -44,10 +47,10 @@ contract RelayApprovalProxyV3 is Ownable {
             "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
     string public constant _RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
+        "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant _RELAYER_WITNESS_TYPEHASH =
         keccak256(
-            "RelayerWitness(address relayer,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+            "RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
 
     receive() external payable {}
@@ -70,18 +73,25 @@ contract RelayApprovalProxyV3 is Ownable {
     /// @param tokens An array of token addresses to transfer
     /// @param amounts An array of token amounts to transfer
     /// @param calls The calls to perform
+    /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     function transferAndMulticall(
         address[] calldata tokens,
         uint256[] calldata amounts,
         Call3Value[] calldata calls,
+        address refundTo,
         address nftRecipient,
         bytes calldata metadata
     ) external payable returns (Result[] memory returnData) {
         // Revert if array lengths do not match
         if ((tokens.length != amounts.length)) {
             revert ArrayLengthsMismatch();
+        }
+
+        // Revert if refundTo is zero address
+        if (refundTo == address(0)) {
+            revert RefundToCannotBeZeroAddress();
         }
 
         // Transfer the tokens to the router
@@ -94,7 +104,9 @@ contract RelayApprovalProxyV3 is Ownable {
         // Call multicall on the router
         returnData = IRelayRouterV3(ROUTER).multicall{value: msg.value}(
             calls,
-            nftRecipient
+            refundTo,
+            nftRecipient,
+            metadata
         );
     }
 
@@ -104,15 +116,22 @@ contract RelayApprovalProxyV3 is Ownable {
     ///         includes ERC721/ERC1155 mints or transfers, be sure to set nftRecipient to the expected recipient.
     /// @param permits An array of permits
     /// @param calls The calls to perform
+    /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     /// @return returnData The return data from the multicall
     function permitTransferAndMulticall(
         Permit2612[] calldata permits,
         Call3Value[] calldata calls,
+        address refundTo,
         address nftRecipient,
         bytes calldata metadata
     ) external payable returns (Result[] memory returnData) {
+        // Revert if refundTo is zero address
+        if (refundTo == address(0)) {
+            revert RefundToCannotBeZeroAddress();
+        }
+
         for (uint256 i = 0; i < permits.length; i++) {
             Permit2612 memory permit = permits[i];
 
@@ -146,7 +165,9 @@ contract RelayApprovalProxyV3 is Ownable {
         // Call multicall on the router
         returnData = IRelayRouterV3(ROUTER).multicall{value: msg.value}(
             calls,
-            nftRecipient
+            refundTo,
+            nftRecipient,
+            metadata
         );
     }
 
@@ -158,6 +179,7 @@ contract RelayApprovalProxyV3 is Ownable {
     /// @param user The address of the user
     /// @param permit The permit details
     /// @param calls The calls to perform
+    /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     /// @param permitSignature The signature for the permit
@@ -165,14 +187,21 @@ contract RelayApprovalProxyV3 is Ownable {
         address user,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         Call3Value[] calldata calls,
+        address refundTo,
         address nftRecipient,
         bytes calldata metadata,
         bytes memory permitSignature
     ) external payable returns (Result[] memory returnData) {
+        // Revert if refundTo is zero address
+        if (refundTo == address(0)) {
+            revert RefundToCannotBeZeroAddress();
+        }
+
         // If a permit signature is provided, use it to transfer tokens from user to router
         if (permitSignature.length != 0) {
             _handleBatchPermit(
                 user,
+                refundTo,
                 nftRecipient,
                 metadata,
                 permit,
@@ -184,7 +213,9 @@ contract RelayApprovalProxyV3 is Ownable {
         // Call multicall on the router
         returnData = IRelayRouterV3(ROUTER).multicall{value: msg.value}(
             calls,
-            nftRecipient
+            refundTo,
+            nftRecipient,
+            metadata
         );
     }
 
@@ -194,6 +225,7 @@ contract RelayApprovalProxyV3 is Ownable {
     ///         includes ERC721/ERC1155 mints or transfers, be sure to set nftRecipient to the expected recipient.
     /// @param permits An array of permits
     /// @param calls The calls to perform
+    /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     /// @return returnData The return data from the multicall
@@ -201,12 +233,18 @@ contract RelayApprovalProxyV3 is Ownable {
         Permit3009[] calldata permits,
         address[] calldata tokens,
         Call3Value[] calldata calls,
+        address refundTo,
         address nftRecipient,
         bytes calldata metadata
     ) external payable returns (Result[] memory returnData) {
         // Revert if array lengths do not match
         if ((tokens.length != permits.length)) {
             revert ArrayLengthsMismatch();
+        }
+
+        // Revert if refundTo is zero address
+        if (refundTo == address(0)) {
+            revert RefundToCannotBeZeroAddress();
         }
 
         for (uint256 i = 0; i < permits.length; i++) {
@@ -219,7 +257,7 @@ contract RelayApprovalProxyV3 is Ownable {
                 permit.value,
                 permit.validAfter,
                 permit.validBefore,
-                _getRelayerWitnessHash(nftRecipient, metadata, calls),
+                _getRelayerWitnessHash(refundTo, nftRecipient, metadata, calls),
                 permit.v,
                 permit.r,
                 permit.s
@@ -234,7 +272,9 @@ contract RelayApprovalProxyV3 is Ownable {
         // Call multicall on the router
         returnData = IRelayRouterV3(ROUTER).multicall{value: msg.value}(
             calls,
-            nftRecipient
+            refundTo,
+            nftRecipient,
+            metadata
         );
     }
 
@@ -262,10 +302,12 @@ contract RelayApprovalProxyV3 is Ownable {
     }
 
     /// @notice Internal function to get the hash of a relayer witness
+    /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The nftRecipient address
     /// @param metadata Additional data to associate the call to
     /// @param calls The calls to be executed
     function _getRelayerWitnessHash(
+        address refundTo,
         address nftRecipient,
         bytes memory metadata,
         Call3Value[] memory calls
@@ -275,6 +317,7 @@ contract RelayApprovalProxyV3 is Ownable {
                 abi.encode(
                     _RELAYER_WITNESS_TYPEHASH,
                     msg.sender,
+                    refundTo,
                     nftRecipient,
                     metadata,
                     _getCallsHash(calls)
@@ -284,6 +327,7 @@ contract RelayApprovalProxyV3 is Ownable {
 
     /// @notice Internal function to handle a permit batch transfer
     /// @param user The address of the user
+    /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     /// @param permit The permit details
@@ -291,13 +335,19 @@ contract RelayApprovalProxyV3 is Ownable {
     /// @param permitSignature The signature for the permit
     function _handleBatchPermit(
         address user,
+        address refundTo,
         address nftRecipient,
         bytes calldata metadata,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         Call3Value[] calldata calls,
         bytes memory permitSignature
     ) internal {
-        bytes32 witness = _getRelayerWitnessHash(nftRecipient, metadata, calls);
+        bytes32 witness = _getRelayerWitnessHash(
+            refundTo,
+            nftRecipient,
+            metadata,
+            calls
+        );
 
         // Create the SignatureTransferDetails array
         ISignatureTransfer.SignatureTransferDetails[]
