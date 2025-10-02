@@ -28,9 +28,10 @@ contract RelayApprovalProxyV3 is Ownable {
     /// @notice Revert if the refundTo address is zero address
     error RefundToCannotBeZeroAddress();
 
-    /// @notice Emitted when pulling funds from a user
-    event RouterPull(
+    /// @notice Emitted on any explicit movement of funds
+    event FundsMovement(
         address from,
+        address to,
         address currency,
         uint256 amount,
         bytes indexed metadata
@@ -98,7 +99,13 @@ contract RelayApprovalProxyV3 is Ownable {
         for (uint256 i = 0; i < tokens.length; i++) {
             IERC20(tokens[i]).safeTransferFrom(msg.sender, ROUTER, amounts[i]);
 
-            emit RouterPull(msg.sender, tokens[i], amounts[i], metadata);
+            emit FundsMovement(
+                msg.sender,
+                ROUTER,
+                tokens[i],
+                amounts[i],
+                metadata
+            );
         }
 
         // Call multicall on the router
@@ -159,7 +166,13 @@ contract RelayApprovalProxyV3 is Ownable {
                 permit.value
             );
 
-            emit RouterPull(permit.owner, permit.token, permit.value, metadata);
+            emit FundsMovement(
+                permit.owner,
+                ROUTER,
+                permit.token,
+                permit.value,
+                metadata
+            );
         }
 
         // Call multicall on the router
@@ -266,7 +279,13 @@ contract RelayApprovalProxyV3 is Ownable {
             // Transfer the tokens to the router
             IERC20(tokens[i]).safeTransfer(ROUTER, permit.value);
 
-            emit RouterPull(permit.from, tokens[i], permit.value, metadata);
+            emit FundsMovement(
+                permit.from,
+                ROUTER,
+                tokens[i],
+                permit.value,
+                metadata
+            );
         }
 
         // Call multicall on the router
@@ -363,7 +382,13 @@ contract RelayApprovalProxyV3 is Ownable {
                     requestedAmount: amount
                 });
 
-            emit RouterPull(user, permit.permitted[i].token, amount, metadata);
+            emit FundsMovement(
+                user,
+                ROUTER,
+                permit.permitted[i].token,
+                amount,
+                metadata
+            );
         }
 
         // Use the SignatureTransferDetails and permit signature to transfer tokens to the router

@@ -33,8 +33,17 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     /// @notice Protocol event to be emitted when transferring native tokens
     event SolverNativeTransfer(address to, uint256 amount);
 
-    /// @notice Emitted when pulling funds from a user
-    event RouterPush(address to, address currency, uint256 amount, bytes data);
+    /// @notice Emitted on any explicit movement of funds
+    event FundsMovement(
+        address from,
+        address to,
+        address currency,
+        uint256 amount,
+        bytes indexed metadata
+    );
+
+    /// @notice Emitted when explicitly requested to get the current balance
+    event FundsCheckpoint(address token, uint256 amount);
 
     uint256 RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("RelayRouter.recipient")) - 1;
@@ -58,7 +67,17 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         address refundTo,
         address nftRecipient,
         bytes calldata metadata
-    ) public payable virtual nonReentrant returns (Result[] memory returnData) {
+    ) public payable nonReentrant returns (Result[] memory returnData) {
+        if (msg.value > 0) {
+            emit FundsMovement(
+                msg.sender,
+                address(this),
+                address(0),
+                msg.value,
+                metadata
+            );
+        }
+
         // Set the NFT recipient if provided
         if (nftRecipient != address(0)) {
             _setRecipient(nftRecipient);
@@ -74,6 +93,16 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         cleanupNative(0, refundTo, metadata);
     }
 
+    /// @notice Emit an event with the funds available in the contract
+    function checkpointFunds(address token) public {
+        if (token == address(0)) {
+            emit FundsCheckpoint(token, address(this).balance);
+        } else {
+            uint256 amount = IERC20(token).balanceOf(address(this));
+            emit FundsCheckpoint(token, amount);
+        }
+    }
+
     /// @notice Send leftover ERC20 tokens to recipients
     /// @dev    Should be included in the multicall if the router is expecting to receive tokens
     ///         Set amount to 0 to transfer the full balance
@@ -86,7 +115,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         address[] calldata recipients,
         uint256[] calldata amounts,
         bytes calldata metadata
-    ) public virtual {
+    ) public {
         // Revert if array lengths do not match
         if (
             tokens.length != amounts.length ||
@@ -108,7 +137,13 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
                 // Transfer the token to the recipient address
                 token.safeTransfer(recipient, amount);
 
-                emit RouterPush(recipient, token, amount, metadata);
+                emit FundsMovement(
+                    address(this),
+                    recipient,
+                    token,
+                    amount,
+                    metadata
+                );
             }
         }
     }
@@ -127,7 +162,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         bytes[] calldata datas,
         uint256[] calldata amounts,
         bytes calldata metadata
-    ) public virtual {
+    ) public {
         // Revert if array lengths do not match
         if (
             tokens.length != amounts.length ||
@@ -157,7 +192,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
                     revert CallFailed();
                 }
 
-                emit RouterPush(to, token, amount, metadata);
+                emit FundsMovement(address(this), to, token, amount, metadata);
             }
         }
     }
@@ -171,7 +206,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         uint256 amount,
         address recipient,
         bytes calldata metadata
-    ) public virtual {
+    ) public {
         // If recipient is address(0), set to msg.sender
         address recipientAddr = recipient == address(0)
             ? msg.sender
@@ -182,7 +217,9 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         if (amountToTransfer > 0) {
             recipientAddr.safeTransferETH(amountToTransfer);
             emit SolverNativeTransfer(recipientAddr, amountToTransfer);
-            emit RouterPush(
+
+            emit FundsMovement(
+                address(this),
                 recipientAddr,
                 address(0),
                 amountToTransfer,
@@ -202,7 +239,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         address to,
         bytes calldata data,
         bytes calldata metadata
-    ) public virtual {
+    ) public {
         uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
 
         if (amountToTransfer > 0) {
@@ -211,7 +248,13 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
                 revert CallFailed();
             }
 
-            emit RouterPush(to, address(0), amountToTransfer, metadata);
+            emit FundsMovement(
+                address(this),
+                to,
+                address(0),
+                amountToTransfer,
+                metadata
+            );
         }
     }
 

@@ -5,8 +5,8 @@
     "compilerVersion": "0.8.28",
     "evmVersion": "cancun",
     "explorerUrl": "https://basescan.org",
-    "relayRouter": "0xa3572394e3f29e271a5803a389045ca5105e1e0e",
-    "relayApprovalProxy": "0x214aedd162aff981e405102253db8657bf6c089d",
+    "relayRouter": "0x694352414e223d89148e0f16c7c86d0c3e4c343f",
+    "relayApprovalProxy": "0xc3a7b87dcf383e4b6eb693a427b0e13382386b65",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   }
