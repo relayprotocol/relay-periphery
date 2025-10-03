@@ -34,7 +34,7 @@ contract RelayApprovalProxyV3 is Ownable {
         address to,
         address currency,
         uint256 amount,
-        bytes indexed metadata
+        bytes metadata
     );
 
     /// @notice The address of the router contract

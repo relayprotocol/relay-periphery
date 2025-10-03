@@ -43,7 +43,11 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     );
 
     /// @notice Emitted when explicitly requested to get the current balance
-    event FundsCheckpoint(address token, uint256 amount);
+    event FundsCheckpoint(
+        address token,
+        uint256 amount,
+        bytes indexed metadata
+    );
 
     uint256 RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("RelayRouter.recipient")) - 1;
@@ -94,12 +98,14 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     }
 
     /// @notice Emit an event with the funds available in the contract
-    function checkpointFunds(address token) public {
+    /// @param token The token to checkpoint
+    /// @param metadata Additional data to associate the call to
+    function checkpointFunds(address token, bytes calldata metadata) public {
         if (token == address(0)) {
-            emit FundsCheckpoint(token, address(this).balance);
+            emit FundsCheckpoint(token, address(this).balance, metadata);
         } else {
             uint256 amount = IERC20(token).balanceOf(address(this));
-            emit FundsCheckpoint(token, amount);
+            emit FundsCheckpoint(token, amount, metadata);
         }
     }
 
