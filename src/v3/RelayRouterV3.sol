@@ -39,15 +39,11 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         address to,
         address currency,
         uint256 amount,
-        bytes indexed metadata
+        bytes metadata
     );
 
     /// @notice Emitted when explicitly requested to get the current balance
-    event FundsCheckpoint(
-        address token,
-        uint256 amount,
-        bytes indexed metadata
-    );
+    event FundsCheckpoint(address token, uint256 amount, bytes metadata);
 
     uint256 RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("RelayRouter.recipient")) - 1;
