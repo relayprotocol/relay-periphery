@@ -42,9 +42,6 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         bytes metadata
     );
 
-    /// @notice Emitted when explicitly requested to get the current balance
-    event FundsCheckpoint(address token, uint256 amount, bytes metadata);
-
     uint256 RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("RelayRouter.recipient")) - 1;
 
@@ -91,18 +88,6 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
 
         // Refund any leftover native tokens to the sender
         cleanupNative(0, refundTo, metadata);
-    }
-
-    /// @notice Emit an event with the funds available in the contract
-    /// @param token The token to checkpoint
-    /// @param metadata Additional data to associate the call to
-    function checkpointFunds(address token, bytes calldata metadata) public {
-        if (token == address(0)) {
-            emit FundsCheckpoint(token, address(this).balance, metadata);
-        } else {
-            uint256 amount = IERC20(token).balanceOf(address(this));
-            emit FundsCheckpoint(token, amount, metadata);
-        }
     }
 
     /// @notice Send leftover ERC20 tokens to recipients
@@ -157,13 +142,11 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     /// @param tos The target addresses for the calls
     /// @param datas The data for the calls
     /// @param amounts The amounts to send
-    /// @param metadata Additional data to associate the call to
     function cleanupErc20sViaCall(
         address[] calldata tokens,
         address[] calldata tos,
         bytes[] calldata datas,
-        uint256[] calldata amounts,
-        bytes calldata metadata
+        uint256[] calldata amounts
     ) public {
         // Revert if array lengths do not match
         if (
@@ -193,8 +176,6 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
                 if (!success) {
                     revert CallFailed();
                 }
-
-                emit FundsMovement(address(this), to, token, amount, metadata);
             }
         }
     }
@@ -235,12 +216,10 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     /// @param amount The amount of native tokens to transfer
     /// @param to The target address of the call
     /// @param data The data for the call
-    /// @param metadata Additional data to associate the call to
     function cleanupNativeViaCall(
         uint256 amount,
         address to,
-        bytes calldata data,
-        bytes calldata metadata
+        bytes calldata data
     ) public {
         uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
 
@@ -249,14 +228,6 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
             if (!success) {
                 revert CallFailed();
             }
-
-            emit FundsMovement(
-                address(this),
-                to,
-                address(0),
-                amountToTransfer,
-                metadata
-            );
         }
     }
 
