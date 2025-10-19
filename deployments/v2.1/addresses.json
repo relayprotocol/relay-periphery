@@ -50,7 +50,7 @@
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
   "ethereal": {
-    "chainId": 510003,
+    "chainId": 5064014,
     "compilerVersion": "0.8.28",
     "evmVersion": "cancun",
     "explorerUrl": "https://explorer.ethereal.trade",
