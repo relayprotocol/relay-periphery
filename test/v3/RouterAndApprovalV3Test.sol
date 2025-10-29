@@ -1165,7 +1165,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
                     relayer,
                     refundTo,
                     nftRecipient,
-                    metadata,
+                    keccak256(metadata),
                     _getCallsHash(calls)
                 )
             );

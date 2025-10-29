@@ -338,7 +338,7 @@ contract RelayApprovalProxyV3 is Ownable {
                     msg.sender,
                     refundTo,
                     nftRecipient,
-                    metadata,
+                    keccak256(metadata),
                     _getCallsHash(calls)
                 )
             );
