@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {Permit2} from "permit2-relay/src/Permit2.sol";
-
-import {IUniswapV2Factory} from "../interfaces/IUniswapV2Factory.sol";
-import {IUniswapV2Router02} from "../interfaces/IUniswapV2Router02.sol";
 
 import {TestERC20} from "../mocks/TestERC20.sol";
 import {TestERC20Permit} from "../mocks/TestERC20Permit.sol";

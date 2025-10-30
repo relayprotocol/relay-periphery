@@ -1,0 +1,13 @@
+[
+  {
+    "name": "base",
+    "chainId": 8453,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "cancun",
+    "explorerUrl": "https://basescan.org",
+    "relayRouter": "0x82603d1713b410337d8a84dcad1f645fdf1463b4",
+    "relayApprovalProxy": "0x8bb01bb4a1798e5adbb304d29e85e0952f63ce5c",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  }
+]

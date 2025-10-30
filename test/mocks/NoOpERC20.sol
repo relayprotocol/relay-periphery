@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // transferFrom just returns true
 contract NoOpERC20 is ERC20("Test20", "TST20") {

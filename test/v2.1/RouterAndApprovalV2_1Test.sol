@@ -1,22 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {StdUtils} from "forge-std/StdUtils.sol";
-
 import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
-import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAllowanceHolder} from "0x-settler/src/allowanceholder/IAllowanceHolder.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {EIP712} from "solady/src/utils/EIP712.sol";
 
+import {Call3Value} from "../../src/common/Multicall3.sol";
+import {Permit2612, Permit3009} from "../../src/common/Permits.sol";
 import {RelayApprovalProxyV2_1} from "../../src/v2.1/RelayApprovalProxyV2_1.sol";
 import {RelayRouterV2_1} from "../../src/v2.1/RelayRouterV2_1.sol";
-import {Call3Value, Permit2612, Permit3009} from "../../src/v2.1/utils/RelayV2_1Structs.sol";
 
-import {BaseTest, RelayerWitness} from "../base/BaseTest.sol";
+import {BaseTest} from "../base/BaseTest.sol";
 import {IUniswapV2Router01} from "../interfaces/IUniswapV2Router02.sol";
 import {NoOpERC20} from "../mocks/NoOpERC20.sol";
 import {TestERC20Permit} from "../mocks/TestERC20Permit.sol";

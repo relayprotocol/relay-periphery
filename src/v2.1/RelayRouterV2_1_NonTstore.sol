@@ -2,14 +2,12 @@
 pragma solidity ^0.8.25;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 
-import {Multicall3} from "./utils/Multicall3.sol";
-import {ReentrancyGuardMsgSender_NonTstore} from "./utils/ReentrancyGuardMsgSender_NonTstore.sol";
-import {Call3Value, Result, RelayerWitness} from "./utils/RelayV2_1Structs.sol";
+import {Call3Value, Multicall3, Result} from "../common/Multicall3.sol";
+import {ReentrancyGuardMsgSender_NonTstore} from "../common/ReentrancyGuardMsgSender_NonTstore.sol";
 
 contract RelayRouterV2_1_NonTstore is Multicall3, ReentrancyGuardMsgSender_NonTstore {
     using SafeTransferLib for address;

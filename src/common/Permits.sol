@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-struct Call3Value {
-    address target;
-    bool allowFailure;
-    uint256 value;
-    bytes callData;
-}
-
 struct Permit2612 {
     address token;
     address owner;
@@ -27,14 +20,4 @@ struct Permit3009 {
     uint8 v;
     bytes32 r;
     bytes32 s;
-}
-
-struct Result {
-    bool success;
-    bytes returnData;
-}
-
-struct RelayerWitness {
-    address relayer;
-    Call3Value[] call3Values;
 }
