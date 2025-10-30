@@ -1,4 +1,4 @@
-There is a single deployment script that needs to be triggered for every new chain, `./script/v2.1/RouterAndApprovalProxyV2_1Deployer.s.sol` or `./script/v2.1/RouterAndApprovalProxyV2_1Deployer_NonTstore.s.sol` (depending on the EVM version supported by the chain)
+There is a single deployment script that needs to be triggered for every new chain, `./script/v3/RouterAndApprovalProxyV3Deployer.s.sol` or `./script/v3/RouterAndApprovalProxyV3Deployer_NonTstore.s.sol` (depending on the EVM version supported by the chain)
 
 Both scripts require the following environment variables:
 
@@ -13,7 +13,7 @@ Both scripts require the following environment variables:
 The deployment can be triggered via the following command:
 
 ```bash
-forge script ./script/v2.1/RouterAndApprovalProxyV2_1Deployer.s.sol:RouterAndApprovalProxyV2_1Deployer \
+forge script ./script/v3/RouterAndApprovalProxyV3Deployer.s.sol:RouterAndApprovalProxyV3Deployer \
     --slow \
     --multi \
     --broadcast \
@@ -30,17 +30,17 @@ The above script should do the deployment and verification altogether. However, 
 
 ```bash
 # RelayRouter
-forge verify-contract --chain $CHAIN $RELAY_ROUTER ./src/v2.1/RelayRouterV2_1.sol:RelayRouterV2_1
+forge verify-contract --chain $CHAIN $RELAY_ROUTER ./src/v3/RelayRouterV3.sol:RelayRouterV3
 
 # RelayApprovalProxy
-forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/v2.1/RelayApprovalProxyV2_1.sol:RelayApprovalProxyV2_1 --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
+forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/v3/RelayApprovalProxyV3.sol:RelayApprovalProxyV3 --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
 ```
 
 In case `forge` doesn't have any default explorer for a given chain, make sure to pass the following extra arguments to the `forge verify-contract` commands: `--verifier-url $VERIFIER_URL --etherscan-api-key $VERIFIER_API_KEY`.
 
 ### Legacy EVM versions deployment
 
-Some chains do not support the default EVM version used by the contracts (Cancun). In that case, we default to compiling using the London EVM version. Since that version does not support features like transient storage, we need to use the `_NonTstore` version of the `RelayRouterV2_1`. This implies two things:
+Some chains do not support the default EVM version used by the contracts (Cancun). In that case, we default to compiling using the London EVM version. Since that version does not support features like transient storage, we need to use the `_NonTstore` version of the `RelayRouterV3`. This implies two things:
 
-- use the `RouterAndApprovalProxyV2_1_NonTstoreDeployer` script
-- adjust the `forge script` command by passing `--contracts src/v2.1/Relay*` (this will result in `forge` skipping compilation for some files that use unsupported features)
+- use the `RouterAndApprovalProxyV3_NonTstoreDeployer` script
+- adjust the `forge script` command by passing `--contracts src/v3/Relay*` (this will result in `forge` skipping compilation for some files that use unsupported features)
