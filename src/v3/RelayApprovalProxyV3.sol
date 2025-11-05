@@ -2,9 +2,13 @@
 pragma solidity ^0.8.23;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IPermit2} from "permit2-relay/src/interfaces/IPermit2.sol";
-import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
+import {
+    ISignatureTransfer
+} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
@@ -63,8 +67,15 @@ contract RelayApprovalProxyV3 is Ownable {
     }
 
     /// @notice Withdraw function in case funds get stuck in contract
-    function withdraw() external onlyOwner {
-        _send(msg.sender, address(this).balance);
+    function withdraw(address token) external onlyOwner {
+        if (token == address(0)) {
+            _send(msg.sender, address(this).balance);
+        } else {
+            IERC20(token).safeTransfer(
+                msg.sender,
+                IERC20(token).balanceOf(address(this))
+            );
+        }
     }
 
     /// @notice Transfer tokens to RelayRouter and perform multicall in a single tx

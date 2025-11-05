@@ -15,9 +15,6 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
 
-    /// @notice Revert if the target is invalid
-    error InvalidTarget(address target);
-
     /// @notice Revert if the native transfer failed
     error NativeTransferFailed();
 
@@ -42,7 +39,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         bytes metadata
     );
 
-    uint256 RECIPIENT_STORAGE_SLOT =
+    uint256 private constant RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("RelayRouter.recipient")) - 1;
 
     constructor() {}
@@ -102,7 +99,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         address[] calldata recipients,
         uint256[] calldata amounts,
         bytes calldata metadata
-    ) public {
+    ) public nonReentrant {
         // Revert if array lengths do not match
         if (
             tokens.length != amounts.length ||
@@ -147,7 +144,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         address[] calldata tos,
         bytes[] calldata datas,
         uint256[] calldata amounts
-    ) public {
+    ) public nonReentrant {
         // Revert if array lengths do not match
         if (
             tokens.length != amounts.length ||
@@ -189,7 +186,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         uint256 amount,
         address recipient,
         bytes calldata metadata
-    ) public {
+    ) public nonReentrant {
         // If recipient is address(0), set to msg.sender
         address recipientAddr = recipient == address(0)
             ? msg.sender
@@ -220,7 +217,7 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
         uint256 amount,
         address to,
         bytes calldata data
-    ) public {
+    ) public nonReentrant {
         uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
 
         if (amountToTransfer > 0) {

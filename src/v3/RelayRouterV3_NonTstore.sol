@@ -7,7 +7,9 @@ import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 
 import {Call3Value, Multicall3, Result} from "../common/Multicall3.sol";
-import {ReentrancyGuardMsgSender_NonTstore} from "../common/ReentrancyGuardMsgSender_NonTstore.sol";
+import {
+    ReentrancyGuardMsgSender_NonTstore
+} from "../common/ReentrancyGuardMsgSender_NonTstore.sol";
 
 contract RelayRouterV3_NonTstore is
     Multicall3,
@@ -17,9 +19,6 @@ contract RelayRouterV3_NonTstore is
 
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);
-
-    /// @notice Revert if the target is invalid
-    error InvalidTarget(address target);
 
     /// @notice Revert if the native transfer failed
     error NativeTransferFailed();
@@ -45,7 +44,7 @@ contract RelayRouterV3_NonTstore is
         bytes metadata
     );
 
-    uint256 RECIPIENT_STORAGE_SLOT =
+    uint256 private constant RECIPIENT_STORAGE_SLOT =
         uint256(keccak256("RelayRouter.recipient")) - 1;
 
     constructor() {}
@@ -105,7 +104,7 @@ contract RelayRouterV3_NonTstore is
         address[] calldata recipients,
         uint256[] calldata amounts,
         bytes calldata metadata
-    ) public {
+    ) public nonReentrant {
         // Revert if array lengths do not match
         if (
             tokens.length != amounts.length ||
@@ -150,7 +149,7 @@ contract RelayRouterV3_NonTstore is
         address[] calldata tos,
         bytes[] calldata datas,
         uint256[] calldata amounts
-    ) public {
+    ) public nonReentrant {
         // Revert if array lengths do not match
         if (
             tokens.length != amounts.length ||
@@ -192,7 +191,7 @@ contract RelayRouterV3_NonTstore is
         uint256 amount,
         address recipient,
         bytes calldata metadata
-    ) public {
+    ) public nonReentrant {
         // If recipient is address(0), set to msg.sender
         address recipientAddr = recipient == address(0)
             ? msg.sender
@@ -223,7 +222,7 @@ contract RelayRouterV3_NonTstore is
         uint256 amount,
         address to,
         bytes calldata data
-    ) public {
+    ) public nonReentrant {
         uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
 
         if (amountToTransfer > 0) {
