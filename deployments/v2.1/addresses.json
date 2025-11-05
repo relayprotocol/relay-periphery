@@ -373,18 +373,6 @@
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
   {
-    "name": "hychain",
-    "chainId": 2911,
-    "compilerVersion": "0.8.28",
-    "evmVersion": "london",
-    "explorerUrl": "https://explorer.hychain.com",
-    "verificationFlags": "--chain 2911 --verifier blockscout --verifier-url https://explorer.hychain.com/api",
-    "relayRouter_nonTstore": "0xb758f3bfa7b9d39ef5457d7c7ffb3702f2ad3982",
-    "relayApprovalProxy": "0x953c95146eb8ce763f35caf2f1d46ddf6a33bea2",
-    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
-  },
-  {
     "name": "mantle",
     "chainId": 5000,
     "compilerVersion": "0.8.28",
@@ -671,30 +659,6 @@
     "evmVersion": "cancun",
     "explorerUrl": "https://explorer.anime.xyz",
     "verificationFlags": "--chain 69000 --verifier blockscout --verifier-url https://explorer.anime.xyz/api",
-    "relayRouter": "0x3ec130b627944cad9b2750300ecb0a695da522b6",
-    "relayApprovalProxy": "0x58cc3e0aa6cd7bf795832a225179ec2d848ce3e7",
-    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
-  },
-  {
-    "name": "apex",
-    "chainId": 70700,
-    "compilerVersion": "0.8.28",
-    "evmVersion": "cancun",
-    "explorerUrl": "https://explorer.apex.proofofplay.com",
-    "verificationFlags": "--chain 70700 --verifier blockscout --verifier-url https://explorer.apex.proofofplay.com/api",
-    "relayRouter": "0x3ec130b627944cad9b2750300ecb0a695da522b6",
-    "relayApprovalProxy": "0x58cc3e0aa6cd7bf795832a225179ec2d848ce3e7",
-    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
-  },
-  {
-    "name": "boss",
-    "chainId": 70701,
-    "compilerVersion": "0.8.28",
-    "evmVersion": "cancun",
-    "explorerUrl": "https://explorer.boss.proofofplay.com",
-    "verificationFlags": "--chain 70701 --verifier blockscout --verifier-url https://explorer.boss.proofofplay.com/api",
     "relayRouter": "0x3ec130b627944cad9b2750300ecb0a695da522b6",
     "relayApprovalProxy": "0x58cc3e0aa6cd7bf795832a225179ec2d848ce3e7",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
