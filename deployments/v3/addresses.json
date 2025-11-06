@@ -23,6 +23,17 @@
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
   {
+    "name": "cronos",
+    "chainId": 25,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "london",
+    "explorerUrl": "https://cronoscan.com/",
+    "relayRouter_nonTstore": "0x9ef6d3c2f60d7b9008d74cab1fc0f899c957c819",
+    "relayApprovalProxy": "0x8754bc615047de01228a7527b712806a71a8dc9a",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
     "name": "bnb",
     "chainId": 56,
     "compilerVersion": "0.8.28",
@@ -62,6 +73,17 @@
     "compilerVersion": "0.8.28",
     "evmVersion": "cancun",
     "explorerUrl": "https://polygonscan.com",
+    "relayRouter": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+    "relayApprovalProxy": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
+    "name": "monad",
+    "chainId": 143,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "cancun",
+    "explorerUrl": "",
     "relayRouter": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
     "relayApprovalProxy": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
@@ -198,6 +220,30 @@
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
   {
+    "name": "metis",
+    "chainId": 1088,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "london",
+    "explorerUrl": "https://explorer.metis.io",
+    "verificationFlags": "--chain 1088 --verifier blockscout --verifier-url https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan/api",
+    "relayRouter_nonTstore": "0x9ef6d3c2f60d7b9008d74cab1fc0f899c957c819",
+    "relayApprovalProxy": "0x8754bc615047de01228a7527b712806a71a8dc9a",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
+    "name": "polygon_zkevm",
+    "chainId": 1101,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "london",
+    "explorerUrl": "https://zkevm.polygonscan.com",
+    "verificationFlags": "--chain 1101",
+    "relayRouter_nonTstore": "0x9ef6d3c2f60d7b9008d74cab1fc0f899c957c819",
+    "relayApprovalProxy": "0x8754bc615047de01228a7527b712806a71a8dc9a",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
     "name": "lisk",
     "chainId": 1135,
     "compilerVersion": "0.8.28",
@@ -325,6 +371,17 @@
     "verificationFlags": "--chain 2818 --verifier blockscout --verifier-url https://explorer-api.morphl2.io/api",
     "relayRouter": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
     "relayApprovalProxy": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
+    "name": "mantle",
+    "chainId": 5000,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "london",
+    "explorerUrl": "https://mantlescan.xyz",
+    "relayRouter_nonTstore": "0x9ef6d3c2f60d7b9008d74cab1fc0f899c957c819",
+    "relayApprovalProxy": "0x8754bc615047de01228a7527b712806a71a8dc9a",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
@@ -563,6 +620,18 @@
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
   {
+    "name": "linea",
+    "chainId": 59144,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "london",
+    "explorerUrl": "https://lineascan.build",
+    "verificationFlags": "--chain 59144",
+    "relayRouter_nonTstore": "0x9ef6d3c2f60d7b9008d74cab1fc0f899c957c819",
+    "relayApprovalProxy": "0x8754bc615047de01228a7527b712806a71a8dc9a",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
     "name": "bob",
     "chainId": 60808,
     "compilerVersion": "0.8.28",
@@ -621,6 +690,18 @@
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
   {
+    "name": "taiko",
+    "chainId": 167000,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "london",
+    "explorerUrl": "https://taikoscan.io",
+    "verificationFlags": "--chain 167000",
+    "relayRouter_nonTstore": "0x9ef6d3c2f60d7b9008d74cab1fc0f899c957c819",
+    "relayApprovalProxy": "0x8754bc615047de01228a7527b712806a71a8dc9a",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
     "name": "syndicate",
     "chainId": 510003,
     "compilerVersion": "0.8.28",
@@ -641,6 +722,17 @@
     "relayApprovalProxy": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
+    "name": "zero",
+    "chainId": 543210,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "london",
+    "explorerUrl": "https://explorer.zero.network",
+    "verificationFlags": "--chain 543210 --verifier blockscout --verifier-url https://explorer.zero.network/api",
+    "relayRouter_nonTstore": "0xe16870b028704e38dbc254a84d3f72c8ba345ca9",
+    "relayApprovalProxy": "0xf6e54bbf91e564fcf0df3ed9f2dd82913e9232c3",
+    "permit2": "0x6b4420f66de496d18a6c36367cf7f1440fd9289f"
   },
   {
     "name": "xai",
