@@ -375,6 +375,18 @@
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   },
   {
+    "name": "tempo",
+    "chainId": 4217,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "cancun",
+    "explorerUrl": "https://explore.tempo.xyz",
+    "verificationFlags": "--chain 4217",
+    "relayRouter": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+    "relayApprovalProxy": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
     "name": "mantle",
     "chainId": 5000,
     "compilerVersion": "0.8.28",
