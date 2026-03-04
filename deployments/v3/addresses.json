@@ -695,7 +695,7 @@
     "compilerVersion": "0.8.28",
     "evmVersion": "cancun",
     "explorerUrl": "https://explorer.doma.xyz",
-    "verificationFlags": "--chain 4217 --verifier blockscout --verifier-url https://explorer.doma.xyz/api",
+    "verificationFlags": "--chain 97477 --verifier blockscout --verifier-url https://explorer.doma.xyz/api",
     "relayRouter": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
     "relayApprovalProxy": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
