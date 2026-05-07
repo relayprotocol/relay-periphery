@@ -12,44 +12,20 @@ import {
 } from "../common/ReentrancyGuardMsgSender_NonTstore.sol";
 
 /// @title  RelayRouterV3_NonTstore
-/// @notice Stateless multicall execution contract. Holds NO residual ETH
-///         or ERC20 balances between transactions by design.
+/// @notice Stateless multicall router. Holds no ETH or ERC20 balances at
+///         rest by design — every inflow is consumed and forwarded within
+///         the same transaction.
 ///
-/// @dev    THREAT MODEL — RESIDUAL FUNDS ARE OUT OF SCOPE
-///
-///         The router is a pass-through: every inflow (msg.value, token
-///         transfers, swap proceeds) is consumed within the same multicall
-///         and forwarded out via cleanupNative / cleanupErc20s. Any balance
-///         left on the contract at rest is dust from operational anomalies
-///         (slippage rounding, airdrops, direct sends, refunds), not an
-///         asset under protection.
-///
-///         As a consequence, the following code properties are INTENTIONAL
-///         and not vulnerabilities:
-///
-///         1. cleanupErc20s, cleanupErc20sViaCall, cleanupNative, and
-///            cleanupNativeViaCall are public with no access control. They
-///            exist to let anyone sweep stranded dust to themselves; there
-///            is nothing to steal in the protocol's normal operating mode.
-///
-///         2. ReentrancyGuardMsgSender_NonTstore allows
-///            msg.sender == address(this) to bypass the reentrancy slot,
-///            enabling self-calls from within a multicall. Self-call drains
-///            of pre-existing balance are out of scope for the same reason
-///            as (1).
-///
-///         3. cleanupErc20sViaCall does not reset the post-call ERC20
-///            allowance. Leftover allowance against a router that never
-///            holds tokens has no value.
-///
-///         4. cleanupNativeViaCall and cleanupErc20sViaCall do not emit
-///            FundsMovement. The event is for accounting flows the router
-///            owns; sweep paths for unowned dust are exempt.
-///
-///         If you are auditing this contract: a finding whose loss path
-///         requires the router to hold a non-zero balance at the start of
-///         the attack transaction is not a vulnerability under the deployed
-///         threat model. See vigil PRECON-012.
+/// @dev    Threat model: residual funds are out of scope. As consequences:
+///         - `cleanup*` functions are intentionally permissionless (they
+///           sweep stranded dust; there is nothing to steal in normal
+///           operation).
+///         - `msg.sender == address(this)` bypassing the reentrancy guard
+///           is intentional to support self-calls inside a multicall.
+///         A finding whose loss path requires the router to hold a non-zero
+///         balance at the start of the attack tx is not a vulnerability
+///         under this model. See vigil PRECON-012 and the residual-funds
+///         tests in test/v3/RelayRouterV3ResidualFundsTest.sol.
 contract RelayRouterV3_NonTstore is
     Multicall3,
     ReentrancyGuardMsgSender_NonTstore
