@@ -9,6 +9,21 @@ import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {Call3Value, Multicall3, Result} from "../common/Multicall3.sol";
 import {ReentrancyGuardMsgSender} from "../common/ReentrancyGuardMsgSender.sol";
 
+/// @title  RelayRouterV3
+/// @notice Stateless multicall router. Holds no ETH or ERC20 balances at
+///         rest by design — every inflow is consumed and forwarded within
+///         the same transaction.
+///
+/// @dev    Threat model: residual funds are out of scope. As consequences:
+///         - `cleanup*` functions are intentionally permissionless (they
+///           sweep stranded dust; there is nothing to steal in normal
+///           operation).
+///         - `msg.sender == address(this)` bypassing the reentrancy guard
+///           is intentional to support self-calls inside a multicall.
+///         A finding whose loss path requires the router to hold a non-zero
+///         balance at the start of the attack tx is not a vulnerability
+///         under this model. See vigil PRECON-012 and the residual-funds
+///         tests in test/v3/RelayRouterV3ResidualFundsTest.sol.
 contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     using SafeTransferLib for address;
 
