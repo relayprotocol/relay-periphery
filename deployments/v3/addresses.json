@@ -925,5 +925,16 @@
     "relayApprovalProxy": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
     "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
     "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+  },
+  {
+    "name": "arc",
+    "chainId": 5042,
+    "compilerVersion": "0.8.28",
+    "evmVersion": "cancun",
+    "explorerUrl": "",
+    "relayRouter": "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+    "relayApprovalProxy": "0xccc88a9d1b4ed6b0eaba998850414b24f1c315be",
+    "create2Factory": "0x4e59b44847b379578588920ca78fbf26c0b4956c",
+    "permit2": "0x000000000022d473030f116ddee9f6b43ac78ba3"
   }
 ]
