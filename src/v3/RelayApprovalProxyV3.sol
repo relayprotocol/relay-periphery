@@ -10,6 +10,7 @@ import {
     ISignatureTransfer
 } from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {Ownable} from "solady/src/auth/Ownable.sol";
+import {EIP712} from "solady/src/utils/EIP712.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 
@@ -18,7 +19,7 @@ import {IERC3009} from "../common/IERC3009.sol";
 import {Call3Value, Result} from "../common/Multicall3.sol";
 import {Permit2612, Permit3009} from "../common/Permits.sol";
 
-contract RelayApprovalProxyV3 is Ownable {
+contract RelayApprovalProxyV3 is Ownable, EIP712 {
     using SafeERC20 for IERC20;
     using SignatureCheckerLib for address;
     using TrustlessPermit for address;
@@ -26,8 +27,14 @@ contract RelayApprovalProxyV3 is Ownable {
     /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();
 
+    /// @notice Revert if the multicall authorization signature is invalid
+    error InvalidMulticallSignature();
+
     /// @notice Revert if the native transfer fails
     error NativeTransferFailed();
+
+    /// @notice Revert if a permit does not belong to the authorizing user
+    error PermitOwnerMismatch();
 
     /// @notice Revert if the refundTo address is zero address
     error RefundToCannotBeZeroAddress();
@@ -50,6 +57,10 @@ contract RelayApprovalProxyV3 is Ownable {
     bytes32 public constant _CALL3VALUE_TYPEHASH =
         keccak256(
             "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+        );
+    bytes32 public constant _MULTICALL_AUTHORIZATION_TYPEHASH =
+        keccak256(
+            "MulticallAuthorization(address from,address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] calls)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
     string public constant _RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
@@ -243,23 +254,28 @@ contract RelayApprovalProxyV3 is Ownable {
         );
     }
 
-    /// @notice Use ERC3009 permit to transfer tokens to RelayRouter and execute multicall in a single tx
-    /// @dev    Approved spender must be address(this) to transfer user's tokens to the RelayRouter. If leftover native tokens
-    ///         is expected as part of the multicall, be sure to set refundTo to the expected recipient. If the multicall
-    ///         includes ERC721/ERC1155 mints or transfers, be sure to set nftRecipient to the expected recipient.
+    /// @notice Use ERC3009 authorizations to transfer tokens to RelayRouter and execute a signed multicall
+    /// @dev    The user must sign the MulticallAuthorization typed data in addition to each ERC3009 authorization.
+    ///         The typed-data digest is used as each ERC3009 nonce, cryptographically binding the token transfers to
+    ///         the displayed call targets, values, data, and other execution parameters.
+    /// @param user The user authorizing the multicall and all token transfers
     /// @param permits An array of permits
+    /// @param tokens An array of tokens corresponding to the permits
     /// @param calls The calls to perform
     /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
+    /// @param multicallSignature The user's EIP712 signature over the MulticallAuthorization
     /// @return returnData The return data from the multicall
     function permit3009TransferAndMulticall(
+        address user,
         Permit3009[] calldata permits,
         address[] calldata tokens,
         Call3Value[] calldata calls,
         address refundTo,
         address nftRecipient,
-        bytes calldata metadata
+        bytes calldata metadata,
+        bytes calldata multicallSignature
     ) external payable returns (Result[] memory returnData) {
         // Revert if array lengths do not match
         if ((tokens.length != permits.length)) {
@@ -271,17 +287,40 @@ contract RelayApprovalProxyV3 is Ownable {
             revert RefundToCannotBeZeroAddress();
         }
 
+        bytes32 authorizationDigest = _getMulticallAuthorizationDigest(
+            user,
+            refundTo,
+            nftRecipient,
+            metadata,
+            calls
+        );
+
+        // Verify the signature that presents all multicall details to the user.
+        if (
+            !user.isValidSignatureNowCalldata(
+                authorizationDigest,
+                multicallSignature
+            )
+        ) {
+            revert InvalidMulticallSignature();
+        }
+
         for (uint256 i = 0; i < permits.length; i++) {
             Permit3009 memory permit = permits[i];
 
-            // Use the permit
+            if (permit.from != user) {
+                revert PermitOwnerMismatch();
+            }
+
+            // The authorization digest is also the ERC3009 nonce, so this
+            // authorization cannot be used with different multicall details.
             IERC3009(tokens[i]).receiveWithAuthorization(
                 permit.from,
                 address(this),
                 permit.value,
                 permit.validAfter,
                 permit.validBefore,
-                _getRelayerWitnessHash(refundTo, nftRecipient, metadata, calls),
+                authorizationDigest,
                 permit.v,
                 permit.r,
                 permit.s
@@ -329,6 +368,35 @@ contract RelayApprovalProxyV3 is Ownable {
         }
 
         return keccak256(abi.encodePacked(callHashes));
+    }
+
+    /// @notice Internal function to get the EIP712 digest of a multicall authorization
+    /// @param user The user authorizing the multicall
+    /// @param refundTo The address to refund any leftover native tokens to
+    /// @param nftRecipient The nftRecipient address
+    /// @param metadata Additional data to associate the call to
+    /// @param calls The calls to be executed
+    function _getMulticallAuthorizationDigest(
+        address user,
+        address refundTo,
+        address nftRecipient,
+        bytes memory metadata,
+        Call3Value[] memory calls
+    ) internal view returns (bytes32) {
+        return
+            _hashTypedData(
+                keccak256(
+                    abi.encode(
+                        _MULTICALL_AUTHORIZATION_TYPEHASH,
+                        user,
+                        msg.sender,
+                        refundTo,
+                        nftRecipient,
+                        keccak256(metadata),
+                        _getCallsHash(calls)
+                    )
+                )
+            );
     }
 
     /// @notice Internal function to get the hash of a relayer witness
@@ -412,6 +480,16 @@ contract RelayApprovalProxyV3 is Ownable {
             _RELAYER_WITNESS_TYPE_STRING,
             permitSignature
         );
+    }
+
+    function _domainNameAndVersion()
+        internal
+        pure
+        override
+        returns (string memory name, string memory version)
+    {
+        name = "RelayApprovalProxyV3";
+        version = "1";
     }
 
     function _send(address to, uint256 value) internal {
