@@ -1116,6 +1116,19 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         address[] memory tokens = new address[](1);
         tokens[0] = address(token);
 
+        Permit3009[] memory emptyPermits = new Permit3009[](0);
+        address[] memory emptyTokens = new address[](0);
+        vm.expectRevert(RelayApprovalProxyV3.PermitsCannotBeEmpty.selector);
+        approvalProxy.permit3009TransferAndMulticall(
+            emptyPermits,
+            emptyTokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            multicallSignature
+        );
+
         // Any changes in the signed execution parameters should result in a
         // failure before the ERC3009 authorization is consumed.
 
@@ -1124,7 +1137,6 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             RelayApprovalProxyV3.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
-            alice.addr,
             permits,
             tokens,
             calls,
@@ -1145,7 +1157,6 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             RelayApprovalProxyV3.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
-            alice.addr,
             permits,
             tokens,
             calls,
@@ -1164,7 +1175,6 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             RelayApprovalProxyV3.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
-            alice.addr,
             permits,
             tokens,
             calls,
@@ -1176,7 +1186,6 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         vm.prank(alice.addr);
         approvalProxy.permit3009TransferAndMulticall(
-            alice.addr,
             permits,
             tokens,
             calls,

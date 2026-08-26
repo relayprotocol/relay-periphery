@@ -36,6 +36,9 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
     /// @notice Revert if a permit does not belong to the authorizing user
     error PermitOwnerMismatch();
 
+    /// @notice Revert if no ERC3009 permits are provided
+    error PermitsCannotBeEmpty();
+
     /// @notice Revert if the refundTo address is zero address
     error RefundToCannotBeZeroAddress();
 
@@ -258,7 +261,6 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
     /// @dev    The user must sign the MulticallAuthorization typed data in addition to each ERC3009 authorization.
     ///         The typed-data digest is used as each ERC3009 nonce, cryptographically binding the token transfers to
     ///         the displayed call targets, values, data, and other execution parameters.
-    /// @param user The user authorizing the multicall and all token transfers
     /// @param permits An array of permits
     /// @param tokens An array of tokens corresponding to the permits
     /// @param calls The calls to perform
@@ -268,7 +270,6 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
     /// @param multicallSignature The user's EIP712 signature over the MulticallAuthorization
     /// @return returnData The return data from the multicall
     function permit3009TransferAndMulticall(
-        address user,
         Permit3009[] calldata permits,
         address[] calldata tokens,
         Call3Value[] calldata calls,
@@ -282,13 +283,18 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             revert ArrayLengthsMismatch();
         }
 
+        if (permits.length == 0) {
+            revert PermitsCannotBeEmpty();
+        }
+
         // Revert if refundTo is zero address
         if (refundTo == address(0)) {
             revert RefundToCannotBeZeroAddress();
         }
 
+        address signer = permits[0].from;
         bytes32 authorizationDigest = _getMulticallAuthorizationDigest(
-            user,
+            signer,
             refundTo,
             nftRecipient,
             metadata,
@@ -297,7 +303,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
 
         // Verify the signature that presents all multicall details to the user.
         if (
-            !user.isValidSignatureNowCalldata(
+            !signer.isValidSignatureNowCalldata(
                 authorizationDigest,
                 multicallSignature
             )
@@ -308,7 +314,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         for (uint256 i = 0; i < permits.length; i++) {
             Permit3009 memory permit = permits[i];
 
-            if (permit.from != user) {
+            if (permit.from != signer) {
                 revert PermitOwnerMismatch();
             }
 
