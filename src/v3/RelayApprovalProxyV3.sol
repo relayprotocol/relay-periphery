@@ -212,7 +212,6 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         );
 
         _cleanupErc20s(tokens, refundTo, metadata);
-        IRelayRouterV3(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     /// @notice Use Permit2 to transfer tokens to RelayRouter and perform an arbitrary multicall.
@@ -266,7 +265,6 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         if (permitSignature.length != 0) {
             _cleanupErc20s(tokens, refundTo, metadata);
         }
-        IRelayRouterV3(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     /// @notice Use ERC3009 authorizations to transfer tokens to RelayRouter and execute a signed multicall
@@ -331,7 +329,6 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         );
 
         _cleanupErc20s(tokens, refundTo, metadata);
-        IRelayRouterV3(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     function _handlePermit3009(
