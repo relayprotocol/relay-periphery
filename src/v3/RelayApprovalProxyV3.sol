@@ -292,13 +292,10 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             revert RefundToCannotBeZeroAddress();
         }
 
-        bytes32[] memory authorizationDigests = new bytes32[](
-            permits.length
-        );
         for (uint256 i = 0; i < permits.length; i++) {
-            address signer = permits[i].from;
-            authorizationDigests[i] = _getMulticallAuthorizationDigest(
-                signer,
+            Permit3009 memory permit = permits[i];
+            bytes32 authorizationDigest = _getMulticallAuthorizationDigest(
+                permit.from,
                 refundTo,
                 nftRecipient,
                 metadata,
@@ -307,17 +304,13 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
 
             // Verify each signature against the owner of the corresponding permit.
             if (
-                !signer.isValidSignatureNowCalldata(
-                    authorizationDigests[i],
+                !permit.from.isValidSignatureNowCalldata(
+                    authorizationDigest,
                     multicallSignatures[i]
                 )
             ) {
                 revert InvalidMulticallSignature();
             }
-        }
-
-        for (uint256 i = 0; i < permits.length; i++) {
-            Permit3009 memory permit = permits[i];
 
             // The authorization digest is also the ERC3009 nonce, so this
             // authorization cannot be used with different multicall details.
@@ -327,7 +320,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
                 permit.value,
                 permit.validAfter,
                 permit.validBefore,
-                authorizationDigests[i],
+                authorizationDigest,
                 permit.v,
                 permit.r,
                 permit.s
