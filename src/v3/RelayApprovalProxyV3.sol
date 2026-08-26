@@ -58,9 +58,13 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         keccak256(
             "Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
+    bytes32 public constant _FUNDING_AUTHORIZATION_TYPEHASH =
+        keccak256(
+            "FundingAuthorization(address token,address from,uint256 value,uint256 validAfter,uint256 validBefore)"
+        );
     bytes32 public constant _MULTICALL_AUTHORIZATION_TYPEHASH =
         keccak256(
-            "MulticallAuthorization(address from,address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] calls)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+            "MulticallAuthorization(address from,address relayer,address refundTo,address nftRecipient,bytes metadata,uint256 fundingIndex,Call3Value[] calls,FundingAuthorization[] funding)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)FundingAuthorization(address token,address from,uint256 value,uint256 validAfter,uint256 validBefore)"
         );
     string public constant _RELAYER_WITNESS_TYPE_STRING =
         "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
@@ -267,8 +271,8 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
 
     /// @notice Use ERC3009 authorizations to transfer tokens to RelayRouter and execute a signed multicall
     /// @dev    The user must sign the MulticallAuthorization typed data in addition to each ERC3009 authorization.
-    ///         The typed-data digest is used as each ERC3009 nonce, cryptographically binding the token transfers to
-    ///         the displayed call targets, values, data, and other execution parameters.
+    ///         The typed-data digest is used as each ERC3009 nonce, cryptographically binding the complete ordered
+    ///         funding batch to the displayed call targets, values, data, and other execution parameters.
     /// @param permits An array of permits
     /// @param tokens An array of tokens corresponding to the permits
     /// @param calls The calls to perform
@@ -303,6 +307,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             revert RefundToCannotBeZeroAddress();
         }
 
+        bytes32 fundingHash = _getFundingHash(permits, tokens);
         for (uint256 i = 0; i < permits.length; i++) {
             _handlePermit3009(
                 permits[i],
@@ -311,6 +316,8 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
                 refundTo,
                 nftRecipient,
                 metadata,
+                fundingHash,
+                i,
                 multicallSignatures[i]
             );
         }
@@ -334,6 +341,8 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         address refundTo,
         address nftRecipient,
         bytes calldata metadata,
+        bytes32 fundingHash,
+        uint256 fundingIndex,
         bytes calldata multicallSignature
     ) internal {
         bytes32 authorizationDigest = _getMulticallAuthorizationDigest(
@@ -341,7 +350,9 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             refundTo,
             nftRecipient,
             metadata,
-            calls
+            calls,
+            fundingHash,
+            fundingIndex
         );
 
         // Verify the signature against the owner of the corresponding permit.
@@ -402,18 +413,44 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         return keccak256(abi.encodePacked(callHashes));
     }
 
+    /// @notice Internal function to hash the complete ordered ERC3009 funding batch
+    function _getFundingHash(
+        Permit3009[] calldata permits,
+        address[] calldata tokens
+    ) internal pure returns (bytes32) {
+        bytes32[] memory fundingHashes = new bytes32[](permits.length);
+        for (uint256 i = 0; i < permits.length; i++) {
+            fundingHashes[i] = keccak256(
+                abi.encode(
+                    _FUNDING_AUTHORIZATION_TYPEHASH,
+                    tokens[i],
+                    permits[i].from,
+                    permits[i].value,
+                    permits[i].validAfter,
+                    permits[i].validBefore
+                )
+            );
+        }
+
+        return keccak256(abi.encodePacked(fundingHashes));
+    }
+
     /// @notice Internal function to get the EIP712 digest of a multicall authorization
     /// @param user The user authorizing the multicall
     /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The nftRecipient address
     /// @param metadata Additional data to associate the call to
     /// @param calls The calls to be executed
+    /// @param fundingHash The hash of the complete ordered funding batch
+    /// @param fundingIndex The index of the permit within the funding batch
     function _getMulticallAuthorizationDigest(
         address user,
         address refundTo,
         address nftRecipient,
         bytes memory metadata,
-        Call3Value[] memory calls
+        Call3Value[] memory calls,
+        bytes32 fundingHash,
+        uint256 fundingIndex
     ) internal view returns (bytes32) {
         return
             _hashTypedData(
@@ -425,7 +462,9 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
                         refundTo,
                         nftRecipient,
                         keccak256(metadata),
-                        _getCallsHash(calls)
+                        fundingIndex,
+                        _getCallsHash(calls),
+                        fundingHash
                     )
                 )
             );
