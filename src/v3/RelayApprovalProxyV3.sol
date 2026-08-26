@@ -161,8 +161,10 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             revert RefundToCannotBeZeroAddress();
         }
 
+        address[] memory tokens = new address[](permits.length);
         for (uint256 i = 0; i < permits.length; i++) {
             Permit2612 memory permit = permits[i];
+            tokens[i] = permit.token;
 
             // Revert if the permit owner is not the msg.sender
             if (permit.owner != msg.sender) {
@@ -204,6 +206,8 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             nftRecipient,
             metadata
         );
+
+        _cleanupErc20s(tokens, refundTo, metadata);
     }
 
     /// @notice Use Permit2 to transfer tokens to RelayRouter and perform an arbitrary multicall.
@@ -233,8 +237,9 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         }
 
         // If a permit signature is provided, use it to transfer tokens from user to router
+        address[] memory tokens;
         if (permitSignature.length != 0) {
-            _handleBatchPermit(
+            tokens = _handleBatchPermit(
                 user,
                 refundTo,
                 nftRecipient,
@@ -252,6 +257,10 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             nftRecipient,
             metadata
         );
+
+        if (permitSignature.length != 0) {
+            _cleanupErc20s(tokens, refundTo, metadata);
+        }
     }
 
     /// @notice Use ERC3009 authorizations to transfer tokens to RelayRouter and execute a signed multicall
@@ -293,48 +302,14 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         }
 
         for (uint256 i = 0; i < permits.length; i++) {
-            Permit3009 memory permit = permits[i];
-            bytes32 authorizationDigest = _getMulticallAuthorizationDigest(
-                permit.from,
+            _handlePermit3009(
+                permits[i],
+                tokens[i],
+                calls,
                 refundTo,
                 nftRecipient,
                 metadata,
-                calls
-            );
-
-            // Verify each signature against the owner of the corresponding permit.
-            if (
-                !permit.from.isValidSignatureNowCalldata(
-                    authorizationDigest,
-                    multicallSignatures[i]
-                )
-            ) {
-                revert InvalidMulticallSignature();
-            }
-
-            // The authorization digest is also the ERC3009 nonce, so this
-            // authorization cannot be used with different multicall details.
-            IERC3009(tokens[i]).receiveWithAuthorization(
-                permit.from,
-                address(this),
-                permit.value,
-                permit.validAfter,
-                permit.validBefore,
-                authorizationDigest,
-                permit.v,
-                permit.r,
-                permit.s
-            );
-
-            // Transfer the tokens to the router
-            IERC20(tokens[i]).safeTransfer(ROUTER, permit.value);
-
-            emit FundsMovement(
-                permit.from,
-                ROUTER,
-                tokens[i],
-                permit.value,
-                metadata
+                multicallSignatures[i]
             );
         }
 
@@ -343,6 +318,60 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             calls,
             refundTo,
             nftRecipient,
+            metadata
+        );
+
+        _cleanupErc20s(tokens, refundTo, metadata);
+    }
+
+    function _handlePermit3009(
+        Permit3009 memory permit,
+        address token,
+        Call3Value[] calldata calls,
+        address refundTo,
+        address nftRecipient,
+        bytes calldata metadata,
+        bytes calldata multicallSignature
+    ) internal {
+        bytes32 authorizationDigest = _getMulticallAuthorizationDigest(
+            permit.from,
+            refundTo,
+            nftRecipient,
+            metadata,
+            calls
+        );
+
+        // Verify the signature against the owner of the corresponding permit.
+        if (
+            !permit.from.isValidSignatureNowCalldata(
+                authorizationDigest,
+                multicallSignature
+            )
+        ) {
+            revert InvalidMulticallSignature();
+        }
+
+        // The authorization digest is also the ERC3009 nonce, so this
+        // authorization cannot be used with different multicall details.
+        IERC3009(token).receiveWithAuthorization(
+            permit.from,
+            address(this),
+            permit.value,
+            permit.validAfter,
+            permit.validBefore,
+            authorizationDigest,
+            permit.v,
+            permit.r,
+            permit.s
+        );
+
+        IERC20(token).safeTransfer(ROUTER, permit.value);
+
+        emit FundsMovement(
+            permit.from,
+            ROUTER,
+            token,
+            permit.value,
             metadata
         );
     }
@@ -439,7 +468,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
         Call3Value[] calldata calls,
         bytes memory permitSignature
-    ) internal {
+    ) internal returns (address[] memory tokens) {
         bytes32 witness = _getRelayerWitnessHash(
             refundTo,
             nftRecipient,
@@ -452,8 +481,10 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](
                 permit.permitted.length
             );
+        tokens = new address[](permit.permitted.length);
         for (uint256 i = 0; i < permit.permitted.length; i++) {
             uint256 amount = permit.permitted[i].amount;
+            tokens[i] = permit.permitted[i].token;
 
             signatureTransferDetails[i] = ISignatureTransfer
                 .SignatureTransferDetails({
@@ -479,6 +510,25 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             witness,
             _RELAYER_WITNESS_TYPE_STRING,
             permitSignature
+        );
+    }
+
+    function _cleanupErc20s(
+        address[] memory tokens,
+        address refundTo,
+        bytes memory metadata
+    ) internal {
+        address[] memory recipients = new address[](tokens.length);
+        uint256[] memory amounts = new uint256[](tokens.length);
+        for (uint256 i = 0; i < tokens.length; i++) {
+            recipients[i] = refundTo;
+        }
+
+        IRelayRouterV3(ROUTER).cleanupErc20s(
+            tokens,
+            recipients,
+            amounts,
+            metadata
         );
     }
 

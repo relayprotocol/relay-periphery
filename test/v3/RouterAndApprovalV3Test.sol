@@ -245,15 +245,13 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         assertEq(erc20_2.balanceOf(bob.addr), 0.15 ether);
         assertEq(erc20_3.balanceOf(bob.addr), 0.2 ether);
 
-        // Any other funds are left in the router
-        assertEq(erc20_1.balanceOf(address(router)), 0.07 ether);
-        assertEq(erc20_2.balanceOf(address(router)), 0.05 ether);
-        assertEq(erc20_3.balanceOf(address(router)), 0.1 ether);
-
-        // All tokens specified by alice were spent from her wallet
-        assertEq(erc20_1.balanceOf(alice.addr), 0.9 ether);
-        assertEq(erc20_2.balanceOf(alice.addr), 0.8 ether);
-        assertEq(erc20_3.balanceOf(alice.addr), 0.7 ether);
+        // Any unspent funds are returned to the refund recipient
+        assertEq(erc20_1.balanceOf(address(router)), 0);
+        assertEq(erc20_2.balanceOf(address(router)), 0);
+        assertEq(erc20_3.balanceOf(address(router)), 0);
+        assertEq(erc20_1.balanceOf(alice.addr), 0.97 ether);
+        assertEq(erc20_2.balanceOf(alice.addr), 0.85 ether);
+        assertEq(erc20_3.balanceOf(alice.addr), 0.8 ether);
     }
 
     function testRouter__Multicall__SwapWETHForUSDC() public {
@@ -700,7 +698,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             callData: abi.encodeWithSelector(
                 IERC20.transfer.selector,
                 bob.addr,
-                1 ether
+                0.4 ether
             )
         });
 
@@ -724,8 +722,9 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             bytes("")
         );
 
-        assertEq(erc20_permit.balanceOf(alice.addr), 0);
-        assertEq(erc20_permit.balanceOf(bob.addr), 1 ether);
+        assertEq(erc20_permit.balanceOf(alice.addr), 0.6 ether);
+        assertEq(erc20_permit.balanceOf(bob.addr), 0.4 ether);
+        assertEq(erc20_permit.balanceOf(address(router)), 0);
     }
 
     function testApprovalProxy__PermitTransferAndMulticall__FrontrunEip2612()
@@ -1064,7 +1063,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             callData: abi.encodeWithSelector(
                 IERC20.transfer.selector,
                 bob.addr,
-                amount
+                amount / 2
             )
         });
         calls[1] = Call3Value({
@@ -1074,7 +1073,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             callData: abi.encodeWithSelector(
                 IERC20.transfer.selector,
                 cal.addr,
-                amount
+                amount / 2
             )
         });
 
@@ -1286,10 +1285,105 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             multicallSignatures
         );
 
-        assertEq(aliceToken.balanceOf(alice.addr), 0);
-        assertEq(aliceToken.balanceOf(bob.addr), amount);
+        assertEq(aliceToken.balanceOf(alice.addr), amount / 2);
+        assertEq(aliceToken.balanceOf(bob.addr), amount / 2);
         assertEq(bobToken.balanceOf(bob.addr), 0);
-        assertEq(bobToken.balanceOf(cal.addr), amount);
+        assertEq(bobToken.balanceOf(alice.addr), amount / 2);
+        assertEq(bobToken.balanceOf(cal.addr), amount / 2);
+        assertEq(aliceToken.balanceOf(address(router)), 0);
+        assertEq(bobToken.balanceOf(address(router)), 0);
+    }
+
+    function testApprovalProxy__Permit3009EmptyMulticallCleanup() public {
+        uint256 amount = 1000 * 10 ** 6;
+        TestERC3009 token = new TestERC3009();
+        token.mint(alice.addr, amount);
+        Call3Value[] memory emptyCalls = new Call3Value[](0);
+
+        bytes32 authorizationDigest = _getMulticallAuthorizationDigest(
+            alice.addr,
+            bob.addr,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            emptyCalls
+        );
+        (uint8 authorizationV, bytes32 authorizationR, bytes32 authorizationS) =
+            vm.sign(alice.key, authorizationDigest);
+        bytes[] memory multicallSignatures = new bytes[](1);
+        multicallSignatures[0] = bytes.concat(
+            authorizationR,
+            authorizationS,
+            bytes1(authorizationV)
+        );
+
+        uint256 validBefore = block.timestamp + 100;
+        bytes32 structHash = keccak256(
+            abi.encode(
+                _PERMIT3009_TYPEHASH,
+                alice.addr,
+                address(approvalProxy),
+                amount,
+                0,
+                validBefore,
+                authorizationDigest
+            )
+        );
+        bytes32 permitHash = _hashTypedData(
+            token.DOMAIN_SEPARATOR(),
+            structHash
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, permitHash);
+
+        Permit3009[] memory permits = new Permit3009[](1);
+        permits[0] = Permit3009({
+            from: alice.addr,
+            value: amount,
+            validAfter: 0,
+            validBefore: validBefore,
+            v: v,
+            r: r,
+            s: s
+        });
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(token);
+
+        vm.prank(bob.addr);
+        approvalProxy.permit3009TransferAndMulticall(
+            permits,
+            tokens,
+            emptyCalls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            multicallSignatures
+        );
+
+        assertEq(token.balanceOf(alice.addr), amount);
+        assertEq(token.balanceOf(address(router)), 0);
+
+        // A subsequent attacker-controlled multicall cannot spend the funds.
+        Call3Value[] memory attackerCalls = new Call3Value[](1);
+        attackerCalls[0] = Call3Value({
+            target: address(token),
+            allowFailure: true,
+            value: 0,
+            callData: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                bob.addr,
+                amount
+            )
+        });
+        vm.prank(bob.addr);
+        router.multicall(
+            attackerCalls,
+            bob.addr,
+            bob.addr,
+            bytes("")
+        );
+
+        assertEq(token.balanceOf(bob.addr), 0);
+        assertEq(token.balanceOf(address(router)), 0);
     }
 
     // Utility methods

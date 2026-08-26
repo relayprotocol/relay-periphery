@@ -10,4 +10,11 @@ interface IRelayRouterV3 {
         address nftRecipient,
         bytes calldata metadata
     ) external payable returns (Result[] memory returnData);
+
+    function cleanupErc20s(
+        address[] calldata tokens,
+        address[] calldata recipients,
+        uint256[] calldata amounts,
+        bytes calldata metadata
+    ) external;
 }
