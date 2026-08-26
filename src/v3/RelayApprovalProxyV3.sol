@@ -33,9 +33,6 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
     /// @notice Revert if the native transfer fails
     error NativeTransferFailed();
 
-    /// @notice Revert if a permit does not belong to the authorizing user
-    error PermitOwnerMismatch();
-
     /// @notice Revert if no ERC3009 permits are provided
     error PermitsCannotBeEmpty();
 
@@ -267,7 +264,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
     /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
-    /// @param multicallSignature The user's EIP712 signature over the MulticallAuthorization
+    /// @param multicallSignatures The EIP712 signatures over the MulticallAuthorization, corresponding to each permit
     /// @return returnData The return data from the multicall
     function permit3009TransferAndMulticall(
         Permit3009[] calldata permits,
@@ -276,10 +273,13 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         address refundTo,
         address nftRecipient,
         bytes calldata metadata,
-        bytes calldata multicallSignature
+        bytes[] calldata multicallSignatures
     ) external payable returns (Result[] memory returnData) {
         // Revert if array lengths do not match
-        if ((tokens.length != permits.length)) {
+        if (
+            tokens.length != permits.length ||
+            multicallSignatures.length != permits.length
+        ) {
             revert ArrayLengthsMismatch();
         }
 
@@ -292,31 +292,32 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             revert RefundToCannotBeZeroAddress();
         }
 
-        address signer = permits[0].from;
-        bytes32 authorizationDigest = _getMulticallAuthorizationDigest(
-            signer,
-            refundTo,
-            nftRecipient,
-            metadata,
-            calls
+        bytes32[] memory authorizationDigests = new bytes32[](
+            permits.length
         );
+        for (uint256 i = 0; i < permits.length; i++) {
+            address signer = permits[i].from;
+            authorizationDigests[i] = _getMulticallAuthorizationDigest(
+                signer,
+                refundTo,
+                nftRecipient,
+                metadata,
+                calls
+            );
 
-        // Verify the signature that presents all multicall details to the user.
-        if (
-            !signer.isValidSignatureNowCalldata(
-                authorizationDigest,
-                multicallSignature
-            )
-        ) {
-            revert InvalidMulticallSignature();
+            // Verify each signature against the owner of the corresponding permit.
+            if (
+                !signer.isValidSignatureNowCalldata(
+                    authorizationDigests[i],
+                    multicallSignatures[i]
+                )
+            ) {
+                revert InvalidMulticallSignature();
+            }
         }
 
         for (uint256 i = 0; i < permits.length; i++) {
             Permit3009 memory permit = permits[i];
-
-            if (permit.from != signer) {
-                revert PermitOwnerMismatch();
-            }
 
             // The authorization digest is also the ERC3009 nonce, so this
             // authorization cannot be used with different multicall details.
@@ -326,7 +327,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
                 permit.value,
                 permit.validAfter,
                 permit.validBefore,
-                authorizationDigest,
+                authorizationDigests[i],
                 permit.v,
                 permit.r,
                 permit.s
