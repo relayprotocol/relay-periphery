@@ -1349,7 +1349,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         tokens[0] = address(token);
 
         vm.prank(bob.addr);
-        approvalProxy.permit3009TransferAndMulticall(
+        approvalProxy.permit3009TransferAndMulticall{value: 1 ether}(
             permits,
             tokens,
             emptyCalls,
@@ -1361,6 +1361,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         assertEq(token.balanceOf(alice.addr), amount);
         assertEq(token.balanceOf(address(router)), 0);
+        assertEq(address(router).balance, 0);
+        assertEq(address(approvalProxy).balance, 0);
 
         // A subsequent attacker-controlled multicall cannot spend the funds.
         Call3Value[] memory attackerCalls = new Call3Value[](1);
