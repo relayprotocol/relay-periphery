@@ -317,7 +317,14 @@ contract RelayRouter_NonTstore is
     }
 
     /// @notice Internal function to set the recipient address for ERC721 or ERC1155 mint
-    /// @dev If the chain does not support tstore, recipient will be saved in storage
+    /// @dev This slot is always persistent storage, in both router variants.
+    ///      Unlike the reentrancy guard — which is transient in `RelayRouter`
+    ///      and persistent only in `RelayRouter_NonTstore` — the recipient is
+    ///      written with `sstore` regardless of tstore support. Setting a
+    ///      non-zero recipient therefore costs a cold `SSTORE` plus a clear on
+    ///      the way out, and only the ERC721/ERC1155 receive hooks ever read
+    ///      it: callers whose multicall receives no such tokens should pass
+    ///      `address(0)` rather than paying for a slot nothing will read.
     /// @param recipient The address of the recipient
     function _setRecipient(address recipient) internal {
         // For safety, revert if the recipient is this contract
