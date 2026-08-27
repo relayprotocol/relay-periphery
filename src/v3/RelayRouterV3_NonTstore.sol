@@ -51,6 +51,17 @@ contract RelayRouterV3_NonTstore is
     event SolverNativeTransfer(address to, uint256 amount);
 
     /// @notice Emitted on any explicit movement of funds
+    /// @param from The address the funds left
+    /// @param to The counterparty of the movement. For direct transfers
+    ///        (`multicall`, `cleanupErc20s`, `cleanupNative`,
+    ///        `cleanupNativeViaCall`) this is the address the funds were sent
+    ///        to. For `cleanupErc20sViaCall` it is the call target the router
+    ///        approved, which spends the allowance from within its own code
+    ///        and may deliver the tokens to a different final recipient that
+    ///        the router cannot observe.
+    /// @param currency The token moved, or address(0) for native tokens
+    /// @param amount The amount that actually left `from`
+    /// @param metadata Additional data associated with the movement
     event FundsMovement(
         address from,
         address to,
@@ -161,7 +172,10 @@ contract RelayRouterV3_NonTstore is
     /// @param amounts The amounts to send
     /// @dev    Emits `FundsMovement` with empty metadata: unlike `cleanupErc20s`
     ///         this entrypoint takes no metadata argument, so movements cannot be
-    ///         correlated off-chain by request id.
+    ///         correlated off-chain by request id. The event's `to` is the call
+    ///         target the allowance was granted to, not necessarily the final
+    ///         token recipient — the target may `transferFrom` the router to a
+    ///         third party, which the router cannot observe.
     function cleanupErc20sViaCall(
         address[] calldata tokens,
         address[] calldata tos,

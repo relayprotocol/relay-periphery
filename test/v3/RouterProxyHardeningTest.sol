@@ -32,17 +32,23 @@ interface IRouterCleanup {
 contract Erc20Consumer {
     address public immutable TOKEN;
     uint256 public pullAmount;
+    address public pullRecipient;
 
     constructor(address token) {
         TOKEN = token;
+        pullRecipient = address(this);
     }
 
     function setPullAmount(uint256 amount) external {
         pullAmount = amount;
     }
 
+    function setPullRecipient(address recipient) external {
+        pullRecipient = recipient;
+    }
+
     function pull() external {
-        IERC20(TOKEN).transferFrom(msg.sender, address(this), pullAmount);
+        IERC20(TOKEN).transferFrom(msg.sender, pullRecipient, pullAmount);
     }
 }
 
@@ -152,6 +158,21 @@ contract RouterProxyHardeningTest is Test {
         assertEq(token.balanceOf(router), 100 ether, "balance moved");
     }
 
+    /// @dev The event's `to` is the approved call target by definition: when
+    ///      the target delivers the tokens to a third party, the event still
+    ///      reports the target, since the router cannot observe the final
+    ///      recipient. Pins the semantics documented on `FundsMovement` so
+    ///      the field is not later mistaken for a token recipient.
+    function test_erc20ViaCall_toIsSpenderNotFinalRecipient_tstore() public {
+        _erc20ViaCallReportsSpender(address(new RelayRouterV3()));
+    }
+
+    function test_erc20ViaCall_toIsSpenderNotFinalRecipient_nonTstore()
+        public
+    {
+        _erc20ViaCallReportsSpender(address(new RelayRouterV3_NonTstore()));
+    }
+
     function test_nativeViaCall_emitsFundsMovement_tstore() public {
         _nativeViaCallEmits(address(new RelayRouterV3()));
     }
@@ -196,6 +217,28 @@ contract RouterProxyHardeningTest is Test {
         _cleanupErc20(router, address(consumer), 100 ether);
 
         assertEq(token.balanceOf(router), 60 ether, "residual not left behind");
+    }
+
+    function _erc20ViaCallReportsSpender(address router) internal {
+        Erc20Consumer consumer = new Erc20Consumer(address(token));
+        address thirdParty = address(0x781D);
+        token.mint(router, 100 ether);
+        consumer.setPullAmount(100 ether);
+        consumer.setPullRecipient(thirdParty);
+
+        vm.expectEmit(true, true, true, true, router);
+        emit FundsMovement(
+            router,
+            address(consumer),
+            address(token),
+            100 ether,
+            ""
+        );
+        _cleanupErc20(router, address(consumer), 0);
+
+        assertEq(token.balanceOf(thirdParty), 100 ether, "third party unpaid");
+        assertEq(token.balanceOf(address(consumer)), 0);
+        assertEq(token.balanceOf(router), 0);
     }
 
     function _nativeViaCallEmits(address router) internal {
