@@ -8,10 +8,10 @@ if [ "$VERIFICATION_FLAGS" != "null" ]; then
     expanded_verification_flags=(`echo $VERIFICATION_FLAGS | tr -d '"'`)
 
     # Verify the contracts using the above flags
-    forge verify-contract ${expanded_verification_flags[@]} $RELAY_ROUTER ./src/v3/RelayRouterV3.sol:RelayRouterV3
-    forge verify-contract ${expanded_verification_flags[@]} $RELAY_APPROVAL_PROXY ./src/v3/RelayApprovalProxyV3.sol:RelayApprovalProxyV3 --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
+    forge verify-contract ${expanded_verification_flags[@]} $RELAY_ROUTER ./src/RelayRouter.sol:RelayRouter
+    forge verify-contract ${expanded_verification_flags[@]} $RELAY_APPROVAL_PROXY ./src/RelayApprovalProxy.sol:RelayApprovalProxy --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
 else
     # Verify the contracts
-    forge verify-contract --chain $CHAIN $RELAY_ROUTER ./src/v3/RelayRouterV3.sol:RelayRouterV3
-    forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/v3/RelayApprovalProxyV3.sol:RelayApprovalProxyV3 --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
+    forge verify-contract --chain $CHAIN $RELAY_ROUTER ./src/RelayRouter.sol:RelayRouter
+    forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/RelayApprovalProxy.sol:RelayApprovalProxy --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
 fi

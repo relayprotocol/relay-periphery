@@ -3,10 +3,10 @@ pragma solidity ^0.8.25;
 
 import {Test} from "forge-std/Test.sol";
 
-import {Call3Value} from "../../src/common/Multicall3.sol";
-import {RelayApprovalProxyV3} from "../../src/v3/RelayApprovalProxyV3.sol";
-import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
-import {RelayRouterV3_NonTstore} from "../../src/v3/RelayRouterV3_NonTstore.sol";
+import {Call3Value} from "../src/common/Multicall3.sol";
+import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
+import {RelayRouter} from "../src/RelayRouter.sol";
+import {RelayRouter_NonTstore} from "../src/RelayRouter_NonTstore.sol";
 
 interface IVIG084Router {
     function cleanupNative(uint256 amount, address recipient, bytes calldata metadata) external;
@@ -15,11 +15,11 @@ interface IVIG084Router {
 /// @dev Re-enters the router through the shared ApprovalProxy sender, then
 ///      restores the ETH it received from the outer multicall to the router.
 contract VIG084NestedApprovalProxyCall {
-    RelayApprovalProxyV3 private immutable APPROVAL_PROXY;
+    RelayApprovalProxy private immutable APPROVAL_PROXY;
     address private immutable ROUTER;
     address private immutable REFUND_TO;
 
-    constructor(RelayApprovalProxyV3 approvalProxy, address router, address refundTo) {
+    constructor(RelayApprovalProxy approvalProxy, address router, address refundTo) {
         APPROVAL_PROXY = approvalProxy;
         ROUTER = router;
         REFUND_TO = refundTo;
@@ -59,17 +59,17 @@ contract VIG084UnrelatedReentrantCaller {
 
 contract ReentrancyGuardMsgSenderVIG084Test is Test {
     function test_nestedApprovalProxyCallDoesNotClearTransientGuard() public {
-        _assertNestedCallDoesNotClearGuard(address(new RelayRouterV3()));
+        _assertNestedCallDoesNotClearGuard(address(new RelayRouter()));
     }
 
     function test_nestedApprovalProxyCallDoesNotClearStorageGuard() public {
-        _assertNestedCallDoesNotClearGuard(address(new RelayRouterV3_NonTstore()));
+        _assertNestedCallDoesNotClearGuard(address(new RelayRouter_NonTstore()));
     }
 
     function _assertNestedCallDoesNotClearGuard(address router) private {
         // Permit2 is unused on this path but must be non-zero.
-        RelayApprovalProxyV3 approvalProxy =
-            new RelayApprovalProxyV3(address(this), router, makeAddr("permit2"));
+        RelayApprovalProxy approvalProxy =
+            new RelayApprovalProxy(address(this), router, makeAddr("permit2"));
 
         address refundTo = makeAddr("refundTo");
         address attemptedRecipient = makeAddr("attemptedRecipient");

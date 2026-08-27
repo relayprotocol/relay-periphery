@@ -14,15 +14,19 @@ import {EIP712} from "solady/src/utils/EIP712.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 
-import {IRelayRouterV3} from "./interfaces/IRelayRouterV3.sol";
-import {IERC3009} from "../common/IERC3009.sol";
-import {Call3Value, Result} from "../common/Multicall3.sol";
-import {Permit2612V3, Permit3009} from "../common/Permits.sol";
+import {IRelayRouter} from "./interfaces/IRelayRouter.sol";
+import {IERC3009} from "./common/IERC3009.sol";
+import {Call3Value, Result} from "./common/Multicall3.sol";
+import {Permit2612, Permit3009} from "./common/Permits.sol";
 
-contract RelayApprovalProxyV3 is Ownable, EIP712 {
+contract RelayApprovalProxy is Ownable, EIP712 {
     using SafeERC20 for IERC20;
     using SignatureCheckerLib for address;
     using TrustlessPermit for address;
+
+    /// @notice Semantic version of this contract. Contract names are
+    ///         unversioned; this constant is the version marker.
+    string public constant VERSION = "3.1";
 
     /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();
@@ -150,7 +154,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         }
 
         // Call multicall on the router
-        returnData = IRelayRouterV3(ROUTER).multicall{value: msg.value}(
+        returnData = IRelayRouter(ROUTER).multicall{value: msg.value}(
             calls,
             refundTo,
             nftRecipient,
@@ -169,7 +173,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
     /// @param metadata Additional data to associate the call to
     /// @return returnData The return data from the multicall
     function permitTransferAndMulticall(
-        Permit2612V3[] calldata permits,
+        Permit2612[] calldata permits,
         Call3Value[] calldata calls,
         address refundTo,
         address nftRecipient,
@@ -182,7 +186,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
 
         address[] memory tokens = new address[](permits.length);
         for (uint256 i = 0; i < permits.length; i++) {
-            Permit2612V3 memory permit = permits[i];
+            Permit2612 memory permit = permits[i];
             tokens[i] = permit.token;
 
             // Revert if the permit owner is not the msg.sender
@@ -221,7 +225,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         }
 
         // Call multicall on the router
-        returnData = IRelayRouterV3(ROUTER).multicall{value: msg.value}(
+        returnData = IRelayRouter(ROUTER).multicall{value: msg.value}(
             calls,
             refundTo,
             nftRecipient,
@@ -229,7 +233,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         );
 
         _cleanupErc20s(tokens, refundTo, metadata);
-        IRelayRouterV3(ROUTER).cleanupNative(0, refundTo, metadata);
+        IRelayRouter(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     /// @notice Use Permit2 to transfer tokens to RelayRouter and perform an arbitrary multicall.
@@ -273,7 +277,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         }
 
         // Call multicall on the router
-        returnData = IRelayRouterV3(ROUTER).multicall{value: msg.value}(
+        returnData = IRelayRouter(ROUTER).multicall{value: msg.value}(
             calls,
             refundTo,
             nftRecipient,
@@ -283,7 +287,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         if (permitSignature.length != 0) {
             _cleanupErc20s(tokens, refundTo, metadata);
         }
-        IRelayRouterV3(ROUTER).cleanupNative(0, refundTo, metadata);
+        IRelayRouter(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     /// @notice Use ERC3009 authorizations to transfer tokens to RelayRouter and execute a signed multicall
@@ -342,7 +346,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         }
 
         // Call multicall on the router
-        returnData = IRelayRouterV3(ROUTER).multicall{value: msg.value}(
+        returnData = IRelayRouter(ROUTER).multicall{value: msg.value}(
             calls,
             refundTo,
             nftRecipient,
@@ -350,7 +354,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         );
 
         _cleanupErc20s(tokens, refundTo, metadata);
-        IRelayRouterV3(ROUTER).cleanupNative(0, refundTo, metadata);
+        IRelayRouter(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     function _handlePermit3009(
@@ -611,7 +615,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             recipients[i] = refundTo;
         }
 
-        IRelayRouterV3(ROUTER).cleanupErc20s(
+        IRelayRouter(ROUTER).cleanupErc20s(
             tokens,
             recipients,
             amounts,
@@ -625,8 +629,8 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         override
         returns (string memory name, string memory version)
     {
-        name = "RelayApprovalProxyV3";
-        version = "1";
+        name = "RelayApprovalProxy";
+        version = VERSION;
     }
 
     function _send(address to, uint256 value) internal {

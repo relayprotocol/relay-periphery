@@ -4,8 +4,8 @@ pragma solidity ^0.8.23;
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
-import {RelayRouterV3_NonTstore} from "../../src/v3/RelayRouterV3_NonTstore.sol";
+import {RelayRouter} from "../src/RelayRouter.sol";
+import {RelayRouter_NonTstore} from "../src/RelayRouter_NonTstore.sol";
 
 /// @notice Minimal interface for the permissionless cleanup surface under test.
 interface IRouterCleanup {
@@ -55,7 +55,7 @@ contract UsdtConsumer {
     }
 }
 
-/// @title  RelayRouterV3 USDT cleanupErc20sViaCall regression tests (DEC-1106)
+/// @title  RelayRouter USDT cleanupErc20sViaCall regression tests (DEC-1106)
 /// @notice Mainnet-fork tests that pin the fix replacing the typed
 ///         `IERC20(token).approve(to, amount)` in `cleanupErc20sViaCall` with
 ///         solady's `safeApproveWithRetry`.
@@ -68,7 +68,7 @@ contract UsdtConsumer {
 ///              new non-zero value. This bricks the next cleanup whenever a
 ///              target consumes less than the approved amount and leaves a
 ///              non-zero residual allowance.
-contract RelayRouterV3UsdtCleanupTest is Test {
+contract RelayRouterUsdtCleanupTest is Test {
     // Mainnet USDT.
     address constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
@@ -93,11 +93,11 @@ contract RelayRouterV3UsdtCleanupTest is Test {
     /// @notice The fix: cleanupErc20sViaCall approves and consumes real USDT
     ///         without reverting (full-balance consumption path).
     function test_cleanupViaCall_usdt_approveDoesNotRevert_tstore() public {
-        _approveDoesNotRevert(address(new RelayRouterV3()));
+        _approveDoesNotRevert(address(new RelayRouter()));
     }
 
     function test_cleanupViaCall_usdt_approveDoesNotRevert_nonTstore() public {
-        _approveDoesNotRevert(address(new RelayRouterV3_NonTstore()));
+        _approveDoesNotRevert(address(new RelayRouter_NonTstore()));
     }
 
     function _approveDoesNotRevert(address router) internal {
@@ -136,11 +136,11 @@ contract RelayRouterV3UsdtCleanupTest is Test {
     ///         re-approving over that residual — safeApproveWithRetry resets to
     ///         zero first.
     function test_cleanupViaCall_usdt_residualAllowancePath_tstore() public {
-        _residualAllowancePath(address(new RelayRouterV3()));
+        _residualAllowancePath(address(new RelayRouter()));
     }
 
     function test_cleanupViaCall_usdt_residualAllowancePath_nonTstore() public {
-        _residualAllowancePath(address(new RelayRouterV3_NonTstore()));
+        _residualAllowancePath(address(new RelayRouter_NonTstore()));
     }
 
     function _residualAllowancePath(address router) internal {

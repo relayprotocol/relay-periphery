@@ -4,10 +4,10 @@ pragma solidity ^0.8.25;
 import {Test, Vm} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {RelayApprovalProxyV3} from "../../src/v3/RelayApprovalProxyV3.sol";
-import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
-import {RelayRouterV3_NonTstore} from "../../src/v3/RelayRouterV3_NonTstore.sol";
-import {TestERC20} from "../mocks/TestERC20.sol";
+import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
+import {RelayRouter} from "../src/RelayRouter.sol";
+import {RelayRouter_NonTstore} from "../src/RelayRouter_NonTstore.sol";
+import {TestERC20} from "./mocks/TestERC20.sol";
 
 /// @notice The permissionless cleanup surface under test, shared by both
 ///         router variants.
@@ -69,7 +69,7 @@ contract GasHungryOwner {
         }
     }
 
-    function withdrawFrom(RelayApprovalProxyV3 proxy, address token) external {
+    function withdrawFrom(RelayApprovalProxy proxy, address token) external {
         proxy.withdraw(token);
     }
 }
@@ -107,33 +107,33 @@ contract RouterProxyHardeningTest is Test {
     // ─────────────────────────────────────────────────────────────────
 
     function test_erc20ViaCall_emitsFundsMovement_tstore() public {
-        _erc20ViaCallEmits(address(new RelayRouterV3()));
+        _erc20ViaCallEmits(address(new RelayRouter()));
     }
 
     function test_erc20ViaCall_emitsFundsMovement_nonTstore() public {
-        _erc20ViaCallEmits(address(new RelayRouterV3_NonTstore()));
+        _erc20ViaCallEmits(address(new RelayRouter_NonTstore()));
     }
 
     /// @dev The emitted amount is what the target actually consumed, not what
     ///      was approved. A target pulling less than the approval must not
     ///      report the larger figure.
     function test_erc20ViaCall_emitsConsumedNotApproved_tstore() public {
-        _erc20ViaCallEmitsConsumed(address(new RelayRouterV3()));
+        _erc20ViaCallEmitsConsumed(address(new RelayRouter()));
     }
 
     function test_erc20ViaCall_emitsConsumedNotApproved_nonTstore() public {
-        _erc20ViaCallEmitsConsumed(address(new RelayRouterV3_NonTstore()));
+        _erc20ViaCallEmitsConsumed(address(new RelayRouter_NonTstore()));
     }
 
     /// @dev A target that pulls nothing moves no funds, so it must not emit.
     ///      Approval events from `safeApproveWithRetry` are expected and are
     ///      filtered out here.
     function test_erc20ViaCall_noEventWhenNothingConsumed_tstore() public {
-        _erc20ViaCallEmitsNothing(address(new RelayRouterV3()));
+        _erc20ViaCallEmitsNothing(address(new RelayRouter()));
     }
 
     function test_erc20ViaCall_noEventWhenNothingConsumed_nonTstore() public {
-        _erc20ViaCallEmitsNothing(address(new RelayRouterV3_NonTstore()));
+        _erc20ViaCallEmitsNothing(address(new RelayRouter_NonTstore()));
     }
 
     function _erc20ViaCallEmitsNothing(address router) internal {
@@ -164,21 +164,21 @@ contract RouterProxyHardeningTest is Test {
     ///      recipient. Pins the semantics documented on `FundsMovement` so
     ///      the field is not later mistaken for a token recipient.
     function test_erc20ViaCall_toIsSpenderNotFinalRecipient_tstore() public {
-        _erc20ViaCallReportsSpender(address(new RelayRouterV3()));
+        _erc20ViaCallReportsSpender(address(new RelayRouter()));
     }
 
     function test_erc20ViaCall_toIsSpenderNotFinalRecipient_nonTstore()
         public
     {
-        _erc20ViaCallReportsSpender(address(new RelayRouterV3_NonTstore()));
+        _erc20ViaCallReportsSpender(address(new RelayRouter_NonTstore()));
     }
 
     function test_nativeViaCall_emitsFundsMovement_tstore() public {
-        _nativeViaCallEmits(address(new RelayRouterV3()));
+        _nativeViaCallEmits(address(new RelayRouter()));
     }
 
     function test_nativeViaCall_emitsFundsMovement_nonTstore() public {
-        _nativeViaCallEmits(address(new RelayRouterV3_NonTstore()));
+        _nativeViaCallEmits(address(new RelayRouter_NonTstore()));
     }
 
     function _erc20ViaCallEmits(address router) internal {
@@ -295,9 +295,9 @@ contract RouterProxyHardeningTest is Test {
     ///         still withdraw the native balance. Under the previous fixed
     ///         stipend this reverted with NativeTransferFailed.
     function test_withdrawNative_toGasHungryOwner() public {
-        RelayRouterV3 router = new RelayRouterV3();
+        RelayRouter router = new RelayRouter();
         GasHungryOwner owner = new GasHungryOwner();
-        RelayApprovalProxyV3 proxy = new RelayApprovalProxyV3(
+        RelayApprovalProxy proxy = new RelayApprovalProxy(
             address(owner),
             address(router),
             permit2
@@ -323,8 +323,8 @@ contract RouterProxyHardeningTest is Test {
     }
 
     function test_withdrawErc20_stillWorks() public {
-        RelayRouterV3 router = new RelayRouterV3();
-        RelayApprovalProxyV3 proxy = new RelayApprovalProxyV3(
+        RelayRouter router = new RelayRouter();
+        RelayApprovalProxy proxy = new RelayApprovalProxy(
             alice,
             address(router),
             permit2
@@ -342,31 +342,31 @@ contract RouterProxyHardeningTest is Test {
     // ─────────────────────────────────────────────────────────────────
 
     function test_constructorRejectsZeroOwner() public {
-        address router = address(new RelayRouterV3());
+        address router = address(new RelayRouter());
         vm.expectRevert(
-            RelayApprovalProxyV3.ConstructorArgCannotBeZeroAddress.selector
+            RelayApprovalProxy.ConstructorArgCannotBeZeroAddress.selector
         );
-        new RelayApprovalProxyV3(address(0), router, permit2);
+        new RelayApprovalProxy(address(0), router, permit2);
     }
 
     function test_constructorRejectsZeroRouter() public {
         vm.expectRevert(
-            RelayApprovalProxyV3.ConstructorArgCannotBeZeroAddress.selector
+            RelayApprovalProxy.ConstructorArgCannotBeZeroAddress.selector
         );
-        new RelayApprovalProxyV3(alice, address(0), permit2);
+        new RelayApprovalProxy(alice, address(0), permit2);
     }
 
     function test_constructorRejectsZeroPermit2() public {
-        address router = address(new RelayRouterV3());
+        address router = address(new RelayRouter());
         vm.expectRevert(
-            RelayApprovalProxyV3.ConstructorArgCannotBeZeroAddress.selector
+            RelayApprovalProxy.ConstructorArgCannotBeZeroAddress.selector
         );
-        new RelayApprovalProxyV3(alice, router, address(0));
+        new RelayApprovalProxy(alice, router, address(0));
     }
 
     function test_constructorAcceptsNonZeroArgs() public {
-        address router = address(new RelayRouterV3());
-        RelayApprovalProxyV3 proxy = new RelayApprovalProxyV3(
+        address router = address(new RelayRouter());
+        RelayApprovalProxy proxy = new RelayApprovalProxy(
             alice,
             router,
             permit2

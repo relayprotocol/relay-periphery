@@ -3,28 +3,28 @@ pragma solidity ^0.8.25;
 
 import {Test} from "forge-std/Test.sol";
 
-import {Call3Value} from "../../src/common/Multicall3.sol";
-import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
-import {TestERC20} from "../mocks/TestERC20.sol";
+import {Call3Value} from "../src/common/Multicall3.sol";
+import {RelayRouter} from "../src/RelayRouter.sol";
+import {TestERC20} from "./mocks/TestERC20.sol";
 
-/// @title  RelayRouterV3 Residual-Funds Invariant Tests
+/// @title  RelayRouter Residual-Funds Invariant Tests
 /// @notice Documents and enforces the design invariant declared in
-///         RelayRouterV3.sol: the router holds no residual ETH or ERC20
+///         RelayRouter.sol: the router holds no residual ETH or ERC20
 ///         balances after a well-formed multicall, and the permissionless
 ///         `cleanup*` surface is intentional.
 ///
 ///         These tests are the operational counterpart to vigil PRECON-012
 ///         and to the contract-level threat-model NatSpec on
-///         RelayRouterV3.sol. They exist so that automated audit tooling
+///         RelayRouter.sol. They exist so that automated audit tooling
 ///         can verify the design intent rather than merely read it.
-contract RelayRouterV3ResidualFundsTest is Test {
-    RelayRouterV3 router;
+contract RelayRouterResidualFundsTest is Test {
+    RelayRouter router;
     TestERC20 token;
     address alice = address(0xA11CE);
     address bob = address(0xB0B);
 
     function setUp() public {
-        router = new RelayRouterV3();
+        router = new RelayRouter();
         token = new TestERC20();
         vm.deal(alice, 10 ether);
         vm.deal(bob, 0);
