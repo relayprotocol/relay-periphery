@@ -7,9 +7,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IAllowanceHolder} from "0x-settler/src/allowanceholder/IAllowanceHolder.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {EIP712} from "solady/src/utils/EIP712.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 import {Call3Value} from "../../src/common/Multicall3.sol";
-import {Permit2612, Permit3009} from "../../src/common/Permits.sol";
+import {Permit2612V3, Permit3009} from "../../src/common/Permits.sol";
 import {RelayApprovalProxyV3} from "../../src/v3/RelayApprovalProxyV3.sol";
 import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
 
@@ -17,6 +18,7 @@ import {BaseTest} from "../base/BaseTest.sol";
 import {IUniswapV2Router01} from "../interfaces/IUniswapV2Router02.sol";
 import {NoOpERC20} from "../mocks/NoOpERC20.sol";
 import {TestERC3009} from "../mocks/TestERC3009.sol";
+import {TestERC3009Fee} from "../mocks/TestERC3009Fee.sol";
 import {TestERC20Permit} from "../mocks/TestERC20Permit.sol";
 import {TestERC721} from "../mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "../mocks/TestERC721_ERC20PaymentToken.sol";
@@ -34,6 +36,13 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
     // Events
     event RouterUpdated(address newRouter);
+    event FundsMovement(
+        address from,
+        address to,
+        address currency,
+        uint256 amount,
+        bytes metadata
+    );
 
     // Constants
     IAllowanceHolder constant ALLOWANCE_HOLDER =
@@ -50,7 +59,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
     bytes32 public constant _RELAYER_WITNESS_TYPEHASH =
         keccak256(
-            "RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+            "RelayerWitness(address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
     bytes32 public constant _FUNDING_AUTHORIZATION_TYPEHASH =
         keccak256(
@@ -58,11 +67,11 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
     bytes32 public constant _MULTICALL_AUTHORIZATION_TYPEHASH =
         keccak256(
-            "MulticallAuthorization(address from,address relayer,address refundTo,address nftRecipient,bytes metadata,uint256 fundingIndex,Call3Value[] calls,FundingAuthorization[] funding)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)FundingAuthorization(address token,address from,uint256 value,uint256 validAfter,uint256 validBefore)"
+            "MulticallAuthorization(address from,address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,uint256 fundingIndex,Call3Value[] calls,FundingAuthorization[] funding)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)FundingAuthorization(address token,address from,uint256 value,uint256 validAfter,uint256 validBefore)"
         );
     bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_TYPEHASH =
         keccak256(
-            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
+            "PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 public constant _PERMIT2_BATCH_TRANSFER_FROM_TYPEHASH =
         keccak256(
@@ -70,7 +79,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
     bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_BATCH_TYPEHASH =
         keccak256(
-            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
+            "PermitBatchWitnessTransferFrom(TokenPermissions[] permitted,address spender,uint256 nonce,uint256 deadline,RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)"
         );
     bytes32 private constant _PERMIT2612_TYPEHASH =
         keccak256(
@@ -81,7 +90,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             "ReceiveWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
         );
     string public constant _PERMIT2_RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
+        "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
 
     // Setup
     function setUp() public override {
@@ -204,6 +213,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             abi.encode(
                 _RELAYER_WITNESS_TYPEHASH,
                 bob.addr,
+                0,
                 alice.addr,
                 alice.addr,
                 bytes(""),
@@ -680,12 +690,11 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
 
-        Permit2612[] memory permits = new Permit2612[](1);
-        permits[0] = Permit2612({
+        Permit2612V3[] memory permits = new Permit2612V3[](1);
+        permits[0] = Permit2612V3({
             token: address(erc20_permit),
             owner: alice.addr,
             value: 1 ether,
-            nonce: 0,
             deadline: block.timestamp + 100,
             v: v,
             r: r,
@@ -752,12 +761,11 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
 
-        Permit2612[] memory permits = new Permit2612[](1);
-        permits[0] = Permit2612({
+        Permit2612V3[] memory permits = new Permit2612V3[](1);
+        permits[0] = Permit2612V3({
             token: address(erc20_permit),
             owner: alice.addr,
             value: 1 ether,
-            nonce: 0,
             deadline: block.timestamp + 100,
             v: v,
             r: r,
@@ -881,6 +889,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             abi.encode(
                 _RELAYER_WITNESS_TYPEHASH,
                 bob.addr,
+                0,
                 alice.addr,
                 alice.addr,
                 bytes(""),
@@ -1109,6 +1118,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         bytes32 aliceAuthorizationDigest = _getMulticallAuthorizationDigest(
             alice.addr,
             alice.addr,
+            0,
             alice.addr,
             alice.addr,
             bytes(""),
@@ -1119,6 +1129,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         bytes32 bobAuthorizationDigest = _getMulticallAuthorizationDigest(
             bob.addr,
             alice.addr,
+            0,
             alice.addr,
             alice.addr,
             bytes(""),
@@ -1370,6 +1381,9 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         bytes32 firstAuthorizationDigest = _getMulticallAuthorizationDigest(
             alice.addr,
             bob.addr,
+            // This flow is submitted with `{value: 1 ether}`, which the
+            // authorization now commits to.
+            1 ether,
             alice.addr,
             alice.addr,
             bytes(""),
@@ -1380,6 +1394,9 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         bytes32 secondAuthorizationDigest = _getMulticallAuthorizationDigest(
             alice.addr,
             bob.addr,
+            // This flow is submitted with `{value: 1 ether}`, which the
+            // authorization now commits to.
+            1 ether,
             alice.addr,
             alice.addr,
             bytes(""),
@@ -1485,6 +1502,245 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         assertEq(token.balanceOf(address(router)), 0);
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // VIG-RP-114: msg.value is part of the signed authorization
+    // ─────────────────────────────────────────────────────────────────
+
+    function testApprovalProxy__Permit3009__MsgValueIsBound() public {
+        uint256 amount = 1000 * 10 ** 6;
+        TestERC3009 aliceToken = new TestERC3009();
+        aliceToken.mint(alice.addr, amount);
+
+        Call3Value[] memory calls = new Call3Value[](0);
+        uint256 validBefore = block.timestamp + 100;
+
+        Permit3009[] memory permits = new Permit3009[](1);
+        permits[0] = Permit3009({
+            from: alice.addr,
+            value: amount,
+            validAfter: 0,
+            validBefore: validBefore,
+            v: 0,
+            r: bytes32(0),
+            s: bytes32(0)
+        });
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(aliceToken);
+
+        // Sign for a zero-value submission.
+        bytes32 digest = _getMulticallAuthorizationDigest(
+            alice.addr,
+            bob.addr,
+            0,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            calls,
+            _getFundingHash(permits, tokens),
+            0
+        );
+        bytes[] memory multicallSignatures = new bytes[](1);
+        {
+            (uint8 av, bytes32 ar, bytes32 as_) = vm.sign(alice.key, digest);
+            multicallSignatures[0] = bytes.concat(ar, as_, bytes1(av));
+        }
+        (permits[0].v, permits[0].r, permits[0].s) = vm.sign(
+            alice.key,
+            _hashTypedData(
+                aliceToken.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        _PERMIT3009_TYPEHASH,
+                        alice.addr,
+                        address(approvalProxy),
+                        amount,
+                        0,
+                        validBefore,
+                        digest
+                    )
+                )
+            )
+        );
+
+        // Submitting the same bundle with native value attached no longer
+        // matches the authorization.
+        vm.deal(bob.addr, 1 ether);
+        vm.prank(bob.addr);
+        vm.expectRevert(
+            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+        );
+        approvalProxy.permit3009TransferAndMulticall{value: 1 wei}(
+            permits,
+            tokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            multicallSignatures
+        );
+
+        // The authorized zero-value submission still works.
+        vm.prank(bob.addr);
+        approvalProxy.permit3009TransferAndMulticall(
+            permits,
+            tokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            multicallSignatures
+        );
+
+        assertEq(aliceToken.balanceOf(alice.addr), amount, "not refunded");
+        assertEq(aliceToken.balanceOf(address(router)), 0);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // VIG-RP-101: fee-on-transfer ERC3009 tokens
+    // ─────────────────────────────────────────────────────────────────
+
+    function testApprovalProxy__Permit3009__FeeOnTransferForwardsReceived()
+        public
+    {
+        uint256 amount = 1000 * 10 ** 6;
+        TestERC3009Fee feeToken = new TestERC3009Fee();
+        feeToken.mint(alice.addr, amount);
+
+        Call3Value[] memory calls = new Call3Value[](0);
+        uint256 validBefore = block.timestamp + 100;
+
+        Permit3009[] memory permits = new Permit3009[](1);
+        permits[0] = Permit3009({
+            from: alice.addr,
+            value: amount,
+            validAfter: 0,
+            validBefore: validBefore,
+            v: 0,
+            r: bytes32(0),
+            s: bytes32(0)
+        });
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(feeToken);
+
+        bytes32 digest = _getMulticallAuthorizationDigest(
+            alice.addr,
+            bob.addr,
+            0,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            calls,
+            _getFundingHash(permits, tokens),
+            0
+        );
+        bytes[] memory multicallSignatures = new bytes[](1);
+        {
+            (uint8 av, bytes32 ar, bytes32 as_) = vm.sign(alice.key, digest);
+            multicallSignatures[0] = bytes.concat(ar, as_, bytes1(av));
+        }
+        (permits[0].v, permits[0].r, permits[0].s) = vm.sign(
+            alice.key,
+            _hashTypedData(
+                feeToken.DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(
+                        _PERMIT3009_TYPEHASH,
+                        alice.addr,
+                        address(approvalProxy),
+                        amount,
+                        0,
+                        validBefore,
+                        digest
+                    )
+                )
+            )
+        );
+
+        // The proxy receives `amount` minus the token's fee and must forward
+        // and report that figure, not the authorized `amount`.
+        uint256 received = amount - (amount * feeToken.FEE_BPS()) / 10_000;
+
+        vm.expectEmit(true, true, true, true, address(approvalProxy));
+        emit FundsMovement(
+            alice.addr,
+            address(router),
+            address(feeToken),
+            received,
+            bytes("")
+        );
+
+        vm.prank(bob.addr);
+        approvalProxy.permit3009TransferAndMulticall(
+            permits,
+            tokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            multicallSignatures
+        );
+
+        assertEq(feeToken.balanceOf(address(approvalProxy)), 0, "proxy holds");
+        assertEq(feeToken.balanceOf(address(router)), 0, "router holds");
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // VIG-RP-106 / 091: no FundsMovement for a zero-amount transfer
+    // ─────────────────────────────────────────────────────────────────
+
+    function testApprovalProxy__TransferAndMulticall__NoPhantomFundsMovement()
+        public
+    {
+        address[] memory tokens = new address[](1);
+        uint256[] memory amounts = new uint256[](1);
+        tokens[0] = address(erc20_1);
+        amounts[0] = 0;
+
+        Call3Value[] memory calls = new Call3Value[](0);
+
+        vm.prank(alice.addr);
+        vm.recordLogs();
+        approvalProxy.transferAndMulticall(
+            tokens,
+            amounts,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes("")
+        );
+
+        bytes32 topic = keccak256(
+            "FundsMovement(address,address,address,uint256,bytes)"
+        );
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != topic, "phantom FundsMovement");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // The authorization type string must not drift from the contract
+    // ─────────────────────────────────────────────────────────────────
+
+    function testCorrectMulticallAuthorizationTypehash() public view {
+        assertEq(
+            approvalProxy._MULTICALL_AUTHORIZATION_TYPEHASH(),
+            _MULTICALL_AUTHORIZATION_TYPEHASH
+        );
+        assertEq(
+            approvalProxy._FUNDING_AUTHORIZATION_TYPEHASH(),
+            _FUNDING_AUTHORIZATION_TYPEHASH
+        );
+        assertEq(
+            approvalProxy._RELAYER_WITNESS_TYPEHASH(),
+            _RELAYER_WITNESS_TYPEHASH
+        );
+        assertEq(
+            approvalProxy._RELAYER_WITNESS_TYPE_STRING(),
+            _PERMIT2_RELAYER_WITNESS_TYPE_STRING
+        );
+    }
+
     // Utility methods
 
     function _getCallsHash(
@@ -1531,6 +1787,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
     function _getMulticallAuthorizationDigest(
         address user,
         address relayer,
+        uint256 msgValue,
         address refundTo,
         address nftRecipient,
         bytes memory metadata,
@@ -1552,6 +1809,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
                 _MULTICALL_AUTHORIZATION_TYPEHASH,
                 user,
                 relayer,
+                msgValue,
                 refundTo,
                 nftRecipient,
                 keccak256(metadata),
@@ -1566,6 +1824,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
     function _getRelayerWitnessHash(
         address relayer,
+        uint256 msgValue,
         address refundTo,
         address nftRecipient,
         bytes memory metadata,
@@ -1576,6 +1835,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
                 abi.encode(
                     _RELAYER_WITNESS_TYPEHASH,
                     relayer,
+                    msgValue,
                     refundTo,
                     nftRecipient,
                     keccak256(metadata),
