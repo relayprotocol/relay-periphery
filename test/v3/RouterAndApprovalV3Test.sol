@@ -16,6 +16,7 @@ import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
 import {BaseTest} from "../base/BaseTest.sol";
 import {IUniswapV2Router01} from "../interfaces/IUniswapV2Router02.sol";
 import {NoOpERC20} from "../mocks/NoOpERC20.sol";
+import {TestERC3009} from "../mocks/TestERC3009.sol";
 import {TestERC20Permit} from "../mocks/TestERC20Permit.sol";
 import {TestERC721} from "../mocks/TestERC721.sol";
 import {TestERC721_ERC20PaymentToken} from "../mocks/TestERC721_ERC20PaymentToken.sol";
@@ -50,6 +51,14 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
     bytes32 public constant _RELAYER_WITNESS_TYPEHASH =
         keccak256(
             "RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+        );
+    bytes32 public constant _FUNDING_AUTHORIZATION_TYPEHASH =
+        keccak256(
+            "FundingAuthorization(address token,address from,uint256 value,uint256 validAfter,uint256 validBefore)"
+        );
+    bytes32 public constant _MULTICALL_AUTHORIZATION_TYPEHASH =
+        keccak256(
+            "MulticallAuthorization(address from,address relayer,address refundTo,address nftRecipient,bytes metadata,uint256 fundingIndex,Call3Value[] calls,FundingAuthorization[] funding)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)FundingAuthorization(address token,address from,uint256 value,uint256 validAfter,uint256 validBefore)"
         );
     bytes32 public constant _PERMIT2_FULL_RELAYER_WITNESS_TYPEHASH =
         keccak256(
@@ -240,15 +249,13 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         assertEq(erc20_2.balanceOf(bob.addr), 0.15 ether);
         assertEq(erc20_3.balanceOf(bob.addr), 0.2 ether);
 
-        // Any other funds are left in the router
-        assertEq(erc20_1.balanceOf(address(router)), 0.07 ether);
-        assertEq(erc20_2.balanceOf(address(router)), 0.05 ether);
-        assertEq(erc20_3.balanceOf(address(router)), 0.1 ether);
-
-        // All tokens specified by alice were spent from her wallet
-        assertEq(erc20_1.balanceOf(alice.addr), 0.9 ether);
-        assertEq(erc20_2.balanceOf(alice.addr), 0.8 ether);
-        assertEq(erc20_3.balanceOf(alice.addr), 0.7 ether);
+        // Any unspent funds are returned to the refund recipient
+        assertEq(erc20_1.balanceOf(address(router)), 0);
+        assertEq(erc20_2.balanceOf(address(router)), 0);
+        assertEq(erc20_3.balanceOf(address(router)), 0);
+        assertEq(erc20_1.balanceOf(alice.addr), 0.97 ether);
+        assertEq(erc20_2.balanceOf(alice.addr), 0.85 ether);
+        assertEq(erc20_3.balanceOf(alice.addr), 0.8 ether);
     }
 
     function testRouter__Multicall__SwapWETHForUSDC() public {
@@ -695,7 +702,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             callData: abi.encodeWithSelector(
                 IERC20.transfer.selector,
                 bob.addr,
-                1 ether
+                0.4 ether
             )
         });
 
@@ -719,8 +726,9 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             bytes("")
         );
 
-        assertEq(erc20_permit.balanceOf(alice.addr), 0);
-        assertEq(erc20_permit.balanceOf(bob.addr), 1 ether);
+        assertEq(erc20_permit.balanceOf(alice.addr), 0.6 ether);
+        assertEq(erc20_permit.balanceOf(bob.addr), 0.4 ether);
+        assertEq(erc20_permit.balanceOf(address(router)), 0);
     }
 
     function testApprovalProxy__PermitTransferAndMulticall__FrontrunEip2612()
@@ -1044,37 +1052,100 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
     function testApprovalProxy__Permit3009TransferAndMulticall() public {
         uint256 amount = 1000 * 10 ** 6;
-
-        // Deal alice some USDC
-
-        deal(USDC, alice.addr, amount);
+        TestERC3009 aliceToken = new TestERC3009();
+        TestERC3009 bobToken = new TestERC3009();
+        aliceToken.mint(alice.addr, amount);
+        bobToken.mint(bob.addr, amount);
 
         // Encode router calls
 
-        Call3Value[] memory calls = new Call3Value[](1);
+        Call3Value[] memory calls = new Call3Value[](2);
         calls[0] = Call3Value({
-            target: address(USDC),
+            target: address(aliceToken),
             allowFailure: false,
             value: 0,
             callData: abi.encodeWithSelector(
                 IERC20.transfer.selector,
                 bob.addr,
-                amount
+                amount / 2
+            )
+        });
+        calls[1] = Call3Value({
+            target: address(bobToken),
+            allowFailure: false,
+            value: 0,
+            callData: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                cal.addr,
+                amount / 2
             )
         });
 
-        bytes32 witness = _getRelayerWitnessHash(
+        uint256 validBefore = block.timestamp + 100;
+        Permit3009[] memory permits = new Permit3009[](2);
+        permits[0] = Permit3009({
+            from: alice.addr,
+            value: amount,
+            validAfter: 0,
+            validBefore: validBefore,
+            v: 0,
+            r: bytes32(0),
+            s: bytes32(0)
+        });
+        permits[1] = Permit3009({
+            from: bob.addr,
+            value: amount,
+            validAfter: 0,
+            validBefore: validBefore,
+            v: 0,
+            r: bytes32(0),
+            s: bytes32(0)
+        });
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(aliceToken);
+        tokens[1] = address(bobToken);
+        bytes32 fundingHash = _getFundingHash(permits, tokens);
+
+        bytes32 aliceAuthorizationDigest = _getMulticallAuthorizationDigest(
+            alice.addr,
             alice.addr,
             alice.addr,
             alice.addr,
             bytes(""),
-            calls
+            calls,
+            fundingHash,
+            0
         );
-        uint256 validBefore = block.timestamp + 100;
+        bytes32 bobAuthorizationDigest = _getMulticallAuthorizationDigest(
+            bob.addr,
+            alice.addr,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            calls,
+            fundingHash,
+            1
+        );
+        (uint8 aliceAuthorizationV, bytes32 aliceAuthorizationR, bytes32 aliceAuthorizationS) =
+            vm.sign(alice.key, aliceAuthorizationDigest);
+        (uint8 bobAuthorizationV, bytes32 bobAuthorizationR, bytes32 bobAuthorizationS) =
+            vm.sign(bob.key, bobAuthorizationDigest);
+        bytes[] memory multicallSignatures = new bytes[](2);
+        multicallSignatures[0] = bytes.concat(
+            aliceAuthorizationR,
+            aliceAuthorizationS,
+            bytes1(aliceAuthorizationV)
+        );
+        multicallSignatures[1] = bytes.concat(
+            bobAuthorizationR,
+            bobAuthorizationS,
+            bytes1(bobAuthorizationV)
+        );
 
-        // Generate permit
+        // Generate ERC3009 authorizations whose nonces are the corresponding
+        // signed multicall authorization digests.
 
-        bytes32 structHash = keccak256(
+        bytes32 aliceStructHash = keccak256(
             abi.encode(
                 _PERMIT3009_TYPEHASH,
                 alice.addr,
@@ -1082,41 +1153,166 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
                 amount,
                 0,
                 validBefore,
-                witness
+                aliceAuthorizationDigest
             )
         );
-        bytes32 eip712PermitHash = _hashTypedData(
-            // The only purpose of the conversion is to be able to call "DOMAIN_SEPARATOR"
-            TestERC20Permit(USDC).DOMAIN_SEPARATOR(),
-            structHash
+        bytes32 alicePermitHash = _hashTypedData(
+            aliceToken.DOMAIN_SEPARATOR(),
+            aliceStructHash
         );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
+        (permits[0].v, permits[0].r, permits[0].s) =
+            vm.sign(alice.key, alicePermitHash);
 
-        Permit3009[] memory permits = new Permit3009[](1);
-        permits[0] = Permit3009({
-            from: alice.addr,
-            value: amount,
-            validAfter: 0,
-            validBefore: validBefore,
-            v: v,
-            r: r,
-            s: s
-        });
-        address[] memory tokens = new address[](1);
-        tokens[0] = USDC;
+        bytes32 bobStructHash = keccak256(
+            abi.encode(
+                _PERMIT3009_TYPEHASH,
+                bob.addr,
+                address(approvalProxy),
+                amount,
+                0,
+                validBefore,
+                bobAuthorizationDigest
+            )
+        );
+        bytes32 bobPermitHash = _hashTypedData(
+            bobToken.DOMAIN_SEPARATOR(),
+            bobStructHash
+        );
+        (permits[1].v, permits[1].r, permits[1].s) =
+            vm.sign(bob.key, bobPermitHash);
 
-        // Any changes in the call parameters should result in a failure
-
-        vm.prank(bob.addr);
-        vm.expectRevert("FiatTokenV2: invalid signature");
+        bytes[] memory mismatchedMulticallSignatures = new bytes[](1);
+        vm.expectRevert(RelayApprovalProxyV3.ArrayLengthsMismatch.selector);
         approvalProxy.permit3009TransferAndMulticall(
             permits,
             tokens,
             calls,
-            bob.addr,
             alice.addr,
-            bytes("")
+            alice.addr,
+            bytes(""),
+            mismatchedMulticallSignatures
         );
+
+        // Every signature commits to the complete ordered funding batch, so
+        // an aligned subset cannot be submitted independently.
+        Permit3009[] memory subsetPermits = new Permit3009[](1);
+        subsetPermits[0] = permits[0];
+        address[] memory subsetTokens = new address[](1);
+        subsetTokens[0] = tokens[0];
+        bytes[] memory subsetSignatures = new bytes[](1);
+        subsetSignatures[0] = multicallSignatures[0];
+        vm.prank(alice.addr);
+        vm.expectRevert(
+            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+        );
+        approvalProxy.permit3009TransferAndMulticall(
+            subsetPermits,
+            subsetTokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            subsetSignatures
+        );
+        assertFalse(
+            aliceToken.authorizationState(
+                alice.addr,
+                aliceAuthorizationDigest
+            )
+        );
+        assertFalse(
+            bobToken.authorizationState(bob.addr, bobAuthorizationDigest)
+        );
+
+        Permit3009[] memory emptyPermits = new Permit3009[](0);
+        address[] memory emptyTokens = new address[](0);
+        bytes[] memory emptyMulticallSignatures = new bytes[](0);
+        vm.expectRevert(RelayApprovalProxyV3.PermitsCannotBeEmpty.selector);
+        approvalProxy.permit3009TransferAndMulticall(
+            emptyPermits,
+            emptyTokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            emptyMulticallSignatures
+        );
+
+        // Any changes in the signed execution parameters should result in a
+        // failure before the ERC3009 authorization is consumed.
+
+        vm.prank(bob.addr);
+        vm.expectRevert(
+            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+        );
+        approvalProxy.permit3009TransferAndMulticall(
+            permits,
+            tokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            multicallSignatures
+        );
+
+        bytes memory signedCallData = calls[0].callData;
+        calls[0].callData = abi.encodeWithSelector(
+            IERC20.transfer.selector,
+            cal.addr,
+            amount
+        );
+        vm.prank(alice.addr);
+        vm.expectRevert(
+            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+        );
+        approvalProxy.permit3009TransferAndMulticall(
+            permits,
+            tokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            multicallSignatures
+        );
+        calls[0].callData = signedCallData;
+
+        // The ERC3009 authorization cannot be used without the explicit
+        // multicall authorization signature.
+
+        bytes[] memory missingMulticallSignatures = new bytes[](2);
+        vm.prank(alice.addr);
+        vm.expectRevert(
+            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+        );
+        approvalProxy.permit3009TransferAndMulticall(
+            permits,
+            tokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            missingMulticallSignatures
+        );
+
+        // Each signature must correspond to the permit at the same index.
+        bytes memory aliceMulticallSignature = multicallSignatures[0];
+        multicallSignatures[0] = multicallSignatures[1];
+        multicallSignatures[1] = aliceMulticallSignature;
+        vm.prank(alice.addr);
+        vm.expectRevert(
+            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+        );
+        approvalProxy.permit3009TransferAndMulticall(
+            permits,
+            tokens,
+            calls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            multicallSignatures
+        );
+        multicallSignatures[1] = multicallSignatures[0];
+        multicallSignatures[0] = aliceMulticallSignature;
 
         vm.prank(alice.addr);
         approvalProxy.permit3009TransferAndMulticall(
@@ -1125,8 +1321,168 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             calls,
             alice.addr,
             alice.addr,
+            bytes(""),
+            multicallSignatures
+        );
+
+        assertEq(aliceToken.balanceOf(alice.addr), amount / 2);
+        assertEq(aliceToken.balanceOf(bob.addr), amount / 2);
+        assertEq(bobToken.balanceOf(bob.addr), 0);
+        assertEq(bobToken.balanceOf(alice.addr), amount / 2);
+        assertEq(bobToken.balanceOf(cal.addr), amount / 2);
+        assertEq(aliceToken.balanceOf(address(router)), 0);
+        assertEq(bobToken.balanceOf(address(router)), 0);
+    }
+
+    function testApprovalProxy__Permit3009DuplicateOwnerTokenAndEmptyMulticallCleanup()
+        public
+    {
+        uint256 amount = 1000 * 10 ** 6;
+        TestERC3009 token = new TestERC3009();
+        token.mint(alice.addr, amount);
+        Call3Value[] memory emptyCalls = new Call3Value[](0);
+
+        uint256 validBefore = block.timestamp + 100;
+        Permit3009[] memory permits = new Permit3009[](2);
+        permits[0] = Permit3009({
+            from: alice.addr,
+            value: amount / 2,
+            validAfter: 0,
+            validBefore: validBefore,
+            v: 0,
+            r: bytes32(0),
+            s: bytes32(0)
+        });
+        permits[1] = Permit3009({
+            from: alice.addr,
+            value: amount / 2,
+            validAfter: 0,
+            validBefore: validBefore,
+            v: 0,
+            r: bytes32(0),
+            s: bytes32(0)
+        });
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(token);
+        tokens[1] = address(token);
+        bytes32 fundingHash = _getFundingHash(permits, tokens);
+
+        bytes32 firstAuthorizationDigest = _getMulticallAuthorizationDigest(
+            alice.addr,
+            bob.addr,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            emptyCalls,
+            fundingHash,
+            0
+        );
+        bytes32 secondAuthorizationDigest = _getMulticallAuthorizationDigest(
+            alice.addr,
+            bob.addr,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            emptyCalls,
+            fundingHash,
+            1
+        );
+        (uint8 firstV, bytes32 firstR, bytes32 firstS) =
+            vm.sign(alice.key, firstAuthorizationDigest);
+        (uint8 secondV, bytes32 secondR, bytes32 secondS) =
+            vm.sign(alice.key, secondAuthorizationDigest);
+        bytes[] memory multicallSignatures = new bytes[](2);
+        multicallSignatures[0] = bytes.concat(
+            firstR,
+            firstS,
+            bytes1(firstV)
+        );
+        multicallSignatures[1] = bytes.concat(
+            secondR,
+            secondS,
+            bytes1(secondV)
+        );
+
+        bytes32 firstStructHash = keccak256(
+            abi.encode(
+                _PERMIT3009_TYPEHASH,
+                alice.addr,
+                address(approvalProxy),
+                amount / 2,
+                0,
+                validBefore,
+                firstAuthorizationDigest
+            )
+        );
+        bytes32 firstPermitHash = _hashTypedData(
+            token.DOMAIN_SEPARATOR(),
+            firstStructHash
+        );
+        (permits[0].v, permits[0].r, permits[0].s) =
+            vm.sign(alice.key, firstPermitHash);
+
+        bytes32 secondStructHash = keccak256(
+            abi.encode(
+                _PERMIT3009_TYPEHASH,
+                alice.addr,
+                address(approvalProxy),
+                amount / 2,
+                0,
+                validBefore,
+                secondAuthorizationDigest
+            )
+        );
+        bytes32 secondPermitHash = _hashTypedData(
+            token.DOMAIN_SEPARATOR(),
+            secondStructHash
+        );
+        (permits[1].v, permits[1].r, permits[1].s) =
+            vm.sign(alice.key, secondPermitHash);
+
+        vm.prank(bob.addr);
+        approvalProxy.permit3009TransferAndMulticall{value: 1 ether}(
+            permits,
+            tokens,
+            emptyCalls,
+            alice.addr,
+            alice.addr,
+            bytes(""),
+            multicallSignatures
+        );
+
+        assertEq(token.balanceOf(alice.addr), amount);
+        assertEq(token.balanceOf(address(router)), 0);
+        assertTrue(
+            token.authorizationState(alice.addr, firstAuthorizationDigest)
+        );
+        assertTrue(
+            token.authorizationState(alice.addr, secondAuthorizationDigest)
+        );
+        assertEq(address(router).balance, 0);
+        assertEq(address(approvalProxy).balance, 0);
+
+        // A subsequent attacker-controlled multicall cannot spend the funds.
+        Call3Value[] memory attackerCalls = new Call3Value[](1);
+        attackerCalls[0] = Call3Value({
+            target: address(token),
+            allowFailure: true,
+            value: 0,
+            callData: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                bob.addr,
+                amount
+            )
+        });
+        vm.prank(bob.addr);
+        router.multicall(
+            attackerCalls,
+            bob.addr,
+            bob.addr,
             bytes("")
         );
+
+        assertEq(token.balanceOf(bob.addr), 0);
+        assertEq(token.balanceOf(address(router)), 0);
     }
 
     // Utility methods
@@ -1149,6 +1505,63 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         }
 
         return keccak256(abi.encodePacked(callHashes));
+    }
+
+    function _getFundingHash(
+        Permit3009[] memory permits,
+        address[] memory tokens
+    ) internal pure returns (bytes32) {
+        bytes32[] memory fundingHashes = new bytes32[](permits.length);
+        for (uint256 i = 0; i < permits.length; i++) {
+            fundingHashes[i] = keccak256(
+                abi.encode(
+                    _FUNDING_AUTHORIZATION_TYPEHASH,
+                    tokens[i],
+                    permits[i].from,
+                    permits[i].value,
+                    permits[i].validAfter,
+                    permits[i].validBefore
+                )
+            );
+        }
+
+        return keccak256(abi.encodePacked(fundingHashes));
+    }
+
+    function _getMulticallAuthorizationDigest(
+        address user,
+        address relayer,
+        address refundTo,
+        address nftRecipient,
+        bytes memory metadata,
+        Call3Value[] memory calls,
+        bytes32 fundingHash,
+        uint256 fundingIndex
+    ) internal view returns (bytes32) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                _DOMAIN_TYPEHASH,
+                keccak256(bytes("RelayApprovalProxyV3")),
+                keccak256(bytes("1")),
+                block.chainid,
+                address(approvalProxy)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                _MULTICALL_AUTHORIZATION_TYPEHASH,
+                user,
+                relayer,
+                refundTo,
+                nftRecipient,
+                keccak256(metadata),
+                fundingIndex,
+                _getCallsHash(calls),
+                fundingHash
+            )
+        );
+
+        return _hashTypedData(domainSeparator, structHash);
     }
 
     function _getRelayerWitnessHash(
