@@ -26,6 +26,9 @@ struct Result {
 /// @author Andreas Bigger <andreas@nascent.xyz>
 /// @author Matt Solomon <matt@mattsolomon.dev>
 contract Multicall3 {
+    /// @notice Revert if a call targets the zero address
+    error InvalidTarget(address target);
+
     event SolverCallExecuted(address to, bytes data, uint256 amount);
 
     /// @notice Aggregate calls
@@ -39,6 +42,15 @@ contract Multicall3 {
         for (uint256 i = 0; i < length;) {
             Result memory result = returnData[i];
             calli = calls[i];
+
+            // A `CALL` to the zero address returns success and permanently
+            // burns any value forwarded with it, and `SolverCallExecuted`
+            // would then report the burn as a successful call. Reject it
+            // regardless of `allowFailure`: a zero target is a malformed
+            // call, not a failure worth tolerating.
+            if (calli.target == address(0)) {
+                revert InvalidTarget(address(0));
+            }
 
             uint256 val = calli.value;
             (result.success, result.returnData) = calli.target.call{value: val}(calli.callData);
