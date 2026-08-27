@@ -26,6 +26,9 @@ contract RelayApprovalProxyV3 is Ownable {
     /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();
 
+    /// @notice Revert if a constructor argument is the zero address
+    error ConstructorArgCannotBeZeroAddress();
+
     /// @notice Revert if the native transfer fails
     error NativeTransferFailed();
 
@@ -61,6 +64,16 @@ contract RelayApprovalProxyV3 is Ownable {
     receive() external payable {}
 
     constructor(address _owner, address _router, address _permit2) {
+        // `ROUTER` and `PERMIT2` are immutable and `_owner` gates the only
+        // rescue function, so a zero argument is unrecoverable post-deploy
+        if (
+            _owner == address(0) ||
+            _router == address(0) ||
+            _permit2 == address(0)
+        ) {
+            revert ConstructorArgCannotBeZeroAddress();
+        }
+
         _initializeOwner(_owner);
         ROUTER = _router;
         PERMIT2 = IPermit2(_permit2);
@@ -418,10 +431,11 @@ contract RelayApprovalProxyV3 is Ownable {
         bool success;
         assembly {
             // Save gas by avoiding copying the return data to memory.
-            // Provide at most 100k gas to the internal call, which is
-            // more than enough to cover common use-cases of logic for
-            // receiving native tokens (eg. SCW payable fallbacks).
-            success := call(100000, to, value, 0, 0, 0, 0)
+            // All remaining gas is forwarded: `_send` is only reachable from
+            // `withdraw`, which is `onlyOwner`, and the owner may be a multisig
+            // or smart contract wallet whose receive hook exceeds a fixed
+            // stipend. Capping it there would strand the native balance.
+            success := call(gas(), to, value, 0, 0, 0, 0)
         }
 
         if (!success) {
