@@ -43,6 +43,9 @@ contract RelayApprovalProxy is Ownable, EIP712 {
     /// @notice Revert if no ERC3009 permits are provided
     error PermitsCannotBeEmpty();
 
+    /// @notice Revert if the withdraw recipient is the zero address
+    error RecipientCannotBeZeroAddress();
+
     /// @notice Revert if the refundTo address is zero address
     error RefundToCannotBeZeroAddress();
 
@@ -109,18 +112,33 @@ contract RelayApprovalProxy is Ownable, EIP712 {
     }
 
     /// @notice Withdraw function in case funds get stuck in contract
-    function withdraw(address token) external onlyOwner {
+    /// @dev    Sends the contract's full balance of `token` to `recipient`.
+    ///         Pass `address(0)` as `token` for the native balance. The
+    ///         recipient is explicit so the owner does not have to be the
+    ///         destination — a hardware wallet or multisig owner can sweep
+    ///         straight to a treasury without a second hop, and an owner
+    ///         whose key is being rotated can still direct funds elsewhere.
+    /// @param token The token to withdraw, or `address(0)` for native
+    /// @param recipient The address to send the funds to
+    function withdraw(
+        address token,
+        address recipient
+    ) external onlyOwner {
+        if (recipient == address(0)) {
+            revert RecipientCannotBeZeroAddress();
+        }
+
         uint256 amount;
         if (token == address(0)) {
             amount = address(this).balance;
-            _send(msg.sender, amount);
+            _send(recipient, amount);
         } else {
             amount = IERC20(token).balanceOf(address(this));
-            IERC20(token).safeTransfer(msg.sender, amount);
+            IERC20(token).safeTransfer(recipient, amount);
         }
 
         if (amount > 0) {
-            emit FundsMovement(address(this), msg.sender, token, amount, "");
+            emit FundsMovement(address(this), recipient, token, amount, "");
         }
     }
 
@@ -652,9 +670,9 @@ contract RelayApprovalProxy is Ownable, EIP712 {
         assembly {
             // Save gas by avoiding copying the return data to memory.
             // All remaining gas is forwarded: `_send` is only reachable from
-            // `withdraw`, which is `onlyOwner`, and the owner may be a multisig
-            // or smart contract wallet whose receive hook exceeds a fixed
-            // stipend. Capping it there would strand the native balance.
+            // `withdraw`, which is `onlyOwner`, and the owner-chosen recipient
+            // may be a multisig or smart contract wallet whose receive hook
+            // exceeds a fixed stipend. Capping it would strand the balance.
             success := call(gas(), to, value, 0, 0, 0, 0)
         }
 

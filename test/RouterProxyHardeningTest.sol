@@ -70,7 +70,7 @@ contract GasHungryOwner {
     }
 
     function withdrawFrom(RelayApprovalProxy proxy, address token) external {
-        proxy.withdraw(token);
+        proxy.withdraw(token, address(this));
     }
 }
 
@@ -337,7 +337,7 @@ contract RouterProxyHardeningTest is Test {
 
         token.mint(address(proxy), 7 ether);
         vm.prank(alice);
-        proxy.withdraw(address(token));
+        proxy.withdraw(address(token), alice);
 
         assertEq(token.balanceOf(alice), 7 ether);
     }
@@ -385,7 +385,7 @@ contract RouterProxyHardeningTest is Test {
         emit FundsMovement(address(proxy), alice, address(0), 2 ether, "");
 
         vm.prank(alice);
-        proxy.withdraw(address(0));
+        proxy.withdraw(address(0), alice);
     }
 
     function test_withdrawErc20_emitsFundsMovement() public {
@@ -396,7 +396,7 @@ contract RouterProxyHardeningTest is Test {
         emit FundsMovement(address(proxy), alice, address(token), 5 ether, "");
 
         vm.prank(alice);
-        proxy.withdraw(address(token));
+        proxy.withdraw(address(token), alice);
     }
 
     /// @notice Nothing to move, nothing to report.
@@ -405,7 +405,7 @@ contract RouterProxyHardeningTest is Test {
 
         vm.recordLogs();
         vm.prank(alice);
-        proxy.withdraw(address(token));
+        proxy.withdraw(address(token), alice);
 
         bytes32 topic = keccak256(
             "FundsMovement(address,address,address,uint256,bytes)"
@@ -414,6 +414,80 @@ contract RouterProxyHardeningTest is Test {
         for (uint256 i; i < logs.length; i++) {
             assertTrue(logs[i].topics[0] != topic, "phantom movement");
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // withdraw takes an explicit recipient
+    // ─────────────────────────────────────────────────────────────────
+
+    /// @notice The owner can sweep to a third party without a second hop.
+    function test_withdrawNative_toThirdParty() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+        vm.deal(address(proxy), 3 ether);
+
+        vm.expectEmit(true, true, true, true, address(proxy));
+        emit FundsMovement(address(proxy), bob, address(0), 3 ether, "");
+
+        vm.prank(alice);
+        proxy.withdraw(address(0), bob);
+
+        assertEq(bob.balance, 3 ether, "recipient did not receive ETH");
+        assertEq(alice.balance, 0, "owner should not be the destination");
+        assertEq(address(proxy).balance, 0);
+    }
+
+    function test_withdrawErc20_toThirdParty() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+        token.mint(address(proxy), 9 ether);
+
+        vm.expectEmit(true, true, true, true, address(proxy));
+        emit FundsMovement(address(proxy), bob, address(token), 9 ether, "");
+
+        vm.prank(alice);
+        proxy.withdraw(address(token), bob);
+
+        assertEq(token.balanceOf(bob), 9 ether);
+        assertEq(token.balanceOf(alice), 0, "owner should not be the destination");
+    }
+
+    /// @notice A zero recipient would burn the balance, so it is rejected
+    ///         rather than silently defaulting to the caller.
+    function test_withdrawRejectsZeroRecipient_native() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+        vm.deal(address(proxy), 1 ether);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            RelayApprovalProxy.RecipientCannotBeZeroAddress.selector
+        );
+        proxy.withdraw(address(0), address(0));
+
+        assertEq(address(proxy).balance, 1 ether, "balance should be untouched");
+    }
+
+    function test_withdrawRejectsZeroRecipient_erc20() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+        token.mint(address(proxy), 1 ether);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            RelayApprovalProxy.RecipientCannotBeZeroAddress.selector
+        );
+        proxy.withdraw(address(token), address(0));
+
+        assertEq(token.balanceOf(address(proxy)), 1 ether);
+    }
+
+    /// @notice The recipient parameter does not weaken the owner gate.
+    function test_withdrawStillOwnerOnly() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+        vm.deal(address(proxy), 1 ether);
+
+        vm.prank(bob);
+        vm.expectRevert();
+        proxy.withdraw(address(0), bob);
+
+        assertEq(address(proxy).balance, 1 ether);
     }
 
     function _proxy(address owner) internal returns (RelayApprovalProxy) {
