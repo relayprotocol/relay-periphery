@@ -2,7 +2,8 @@ There is a single deployment script that needs to be triggered for every new cha
 
 Both scripts require the following environment variables:
 
-- `DEPLOYER_PK`: the private key of the deployer wallet
+- `DEPLOYER_PK`: the private key of the deployer wallet (any funded key: it only pays gas)
+- `OWNER`: the address to set as the `ApprovalProxy` owner - since it is a constructor argument it is part of the `CREATE2` input, so pinning it keeps the proxy address identical on every chain regardless of which key broadcasts (the canonical owner is `0x463cB782c8dd0a1887b77336DfF74D60F006F56E`)
 - `CHAIN`: the chain to deploy on (the available options can be found in `./foundry.toml`)
 - `CREATE2_FACTORY`: the addres of the `CREATE2` factory to be used for deterministic deployments - the default factory should be deployed at `0x4e59b44847b379578588920ca78fbf26c0b4956c`, in case it's not available on a given chain we should deploy it there or otherwise use a different factory
 - `PERMIT2`: the address of the `PERMIT2` contract to use for `ApprovalProxy` - the default permit2 should be deployed at `0x000000000022d473030f116ddee9f6b43ac78ba3`, in case it's not available on a given chain we should deploy it there or otherwise use a different permit2
@@ -33,7 +34,7 @@ The above script should do the deployment and verification altogether. However, 
 forge verify-contract --chain $CHAIN $RELAY_ROUTER ./src/RelayRouter.sol:RelayRouter
 
 # RelayApprovalProxy
-forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/RelayApprovalProxy.sol:RelayApprovalProxy --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
+forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/RelayApprovalProxy.sol:RelayApprovalProxy --constructor-args $(cast abi-encode "constructor(address, address, address)" $OWNER $RELAY_ROUTER $PERMIT2)
 ```
 
 In case `forge` doesn't have any default explorer for a given chain, make sure to pass the following extra arguments to the `forge verify-contract` commands: `--verifier-url $VERIFIER_URL --etherscan-api-key $VERIFIER_API_KEY`.

@@ -19,14 +19,16 @@ contract RouterAndApprovalProxyDeployer is Script {
     function run() public {
         vm.createSelectFork(vm.envString("CHAIN"));
 
+        address owner = vm.envAddress("OWNER");
+
         vm.startBroadcast();
 
         RelayRouter router = RelayRouter(payable(deployRouter()));
         RelayApprovalProxy approvalProxy = RelayApprovalProxy(
-            payable(deployApprovalProxy(address(router)))
+            payable(deployApprovalProxy(owner, address(router)))
         );
 
-        assert(approvalProxy.owner() == msg.sender);
+        assert(approvalProxy.owner() == owner);
 
         vm.stopBroadcast();
     }
@@ -77,7 +79,10 @@ contract RouterAndApprovalProxyDeployer is Script {
         return address(router);
     }
 
-    function deployApprovalProxy(address router) public returns (address) {
+    function deployApprovalProxy(
+        address owner,
+        address router
+    ) public returns (address) {
         console2.log("Deploying ApprovalProxy");
 
         address create2Factory = vm.envAddress("CREATE2_FACTORY");
@@ -95,7 +100,7 @@ contract RouterAndApprovalProxyDeployer is Script {
                             keccak256(
                                 abi.encodePacked(
                                     type(RelayApprovalProxy).creationCode,
-                                    abi.encode(msg.sender, router, permit2)
+                                    abi.encode(owner, router, permit2)
                                 )
                             )
                         )
@@ -118,7 +123,7 @@ contract RouterAndApprovalProxyDeployer is Script {
         // Deploy
         RelayApprovalProxy approvalProxy = new RelayApprovalProxy{
             salt: SALT
-        }(msg.sender, router, permit2);
+        }(owner, router, permit2);
 
         // Ensure the predicted and actual addresses match
         if (predictedAddress != address(approvalProxy)) {
