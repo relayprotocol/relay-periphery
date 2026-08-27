@@ -45,6 +45,10 @@ contract RelayRouter_NonTstore is
     /// @notice Revert if no recipient is set
     error NoRecipientSet();
 
+    /// @notice Revert if a nested multicall requests a different NFT recipient
+    ///         than the one already set by an enclosing frame
+    error RecipientAlreadySet(address current, address requested);
+
     /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();
 
@@ -107,16 +111,31 @@ contract RelayRouter_NonTstore is
             );
         }
 
-        // Set the NFT recipient if provided
+        // Set the NFT recipient if provided. The reentrancy guard admits
+        // nested same-sender calls, so a call inside `calls` may re-enter
+        // `multicall`. Only the frame that acquired the recipient may clear
+        // it: a nested frame clearing it would leave every later NFT callback
+        // in the enclosing frame reading a zero recipient, reverting with
+        // `NoRecipientSet` — or, under `allowFailure`, swallowing that revert
+        // so the mint never happens and the multicall still reports success.
+        bool recipientSetHere;
         if (nftRecipient != address(0)) {
-            _setRecipient(nftRecipient);
+            address currentRecipient = _getRecipient();
+            if (currentRecipient == address(0)) {
+                _setRecipient(nftRecipient);
+                recipientSetHere = true;
+            } else if (currentRecipient != nftRecipient) {
+                revert RecipientAlreadySet(currentRecipient, nftRecipient);
+            }
         }
 
         // Perform the multicall
         returnData = _aggregate3Value(calls);
 
         // Clear the recipient in storage
-        _clearRecipient();
+        if (recipientSetHere) {
+            _clearRecipient();
+        }
 
         // Refund any leftover native tokens to the sender
         cleanupNative(0, refundTo, metadata);
@@ -298,7 +317,14 @@ contract RelayRouter_NonTstore is
     }
 
     /// @notice Internal function to set the recipient address for ERC721 or ERC1155 mint
-    /// @dev If the chain does not support tstore, recipient will be saved in storage
+    /// @dev This slot is always persistent storage, in both router variants.
+    ///      Unlike the reentrancy guard — which is transient in `RelayRouter`
+    ///      and persistent only in `RelayRouter_NonTstore` — the recipient is
+    ///      written with `sstore` regardless of tstore support. Setting a
+    ///      non-zero recipient therefore costs a cold `SSTORE` plus a clear on
+    ///      the way out, and only the ERC721/ERC1155 receive hooks ever read
+    ///      it: callers whose multicall receives no such tokens should pass
+    ///      `address(0)` rather than paying for a slot nothing will read.
     /// @param recipient The address of the recipient
     function _setRecipient(address recipient) internal {
         // For safety, revert if the recipient is this contract
