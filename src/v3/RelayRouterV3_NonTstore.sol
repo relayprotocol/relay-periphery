@@ -185,8 +185,12 @@ contract RelayRouterV3_NonTstore is
                 : amounts[i];
 
             if (amount > 0) {
-                // First approve the target address for the call
-                IERC20(token).approve(to, amount);
+                // Approve the target for the call. Use safeApproveWithRetry to
+                // support non-standard ERC20s: tokens that do not return a bool
+                // on approve (e.g. USDT, which reverts the typed call with empty
+                // returndata) and tokens that require resetting the allowance to
+                // zero before setting a new non-zero value (also USDT).
+                token.safeApproveWithRetry(to, amount);
 
                 // Make the call
                 (bool success, ) = to.call(data);
