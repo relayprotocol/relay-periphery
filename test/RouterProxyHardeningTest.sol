@@ -358,6 +358,25 @@ contract RouterProxyHardeningTest is Test {
         assertTrue(ok);
     }
 
+    /// @notice A zero-value call to receive() moves nothing, so it must not
+    ///         emit — matching the VIG-RP-106 guards on the permit paths.
+    function test_receive_noEventOnZeroValue() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+
+        vm.recordLogs();
+        vm.prank(bob);
+        (bool ok, ) = address(proxy).call{value: 0}("");
+        assertTrue(ok);
+
+        bytes32 topic = keccak256(
+            "FundsMovement(address,address,address,uint256,bytes)"
+        );
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != topic, "phantom movement");
+        }
+    }
+
     function test_withdrawNative_emitsFundsMovement() public {
         RelayApprovalProxy proxy = _proxy(alice);
         vm.deal(address(proxy), 2 ether);
