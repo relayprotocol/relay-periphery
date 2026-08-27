@@ -1656,16 +1656,21 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             )
         );
 
-        // The proxy receives `amount` minus the token's fee and must forward
-        // and report that figure, not the authorized `amount`.
+        // The token taxes every transfer, so the proxy receives `amount`
+        // minus one fee and the router receives that minus a second fee. The
+        // event must report the second figure — what actually reached the
+        // router — not the proxy's receipt and not the authorized `amount`.
         uint256 received = amount - (amount * feeToken.FEE_BPS()) / 10_000;
+        uint256 delivered = received -
+            (received * feeToken.FEE_BPS()) /
+            10_000;
 
         vm.expectEmit(true, true, true, true, address(approvalProxy));
         emit FundsMovement(
             alice.addr,
             address(router),
             address(feeToken),
-            received,
+            delivered,
             bytes("")
         );
 
@@ -1682,6 +1687,16 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         assertEq(feeToken.balanceOf(address(approvalProxy)), 0, "proxy holds");
         assertEq(feeToken.balanceOf(address(router)), 0, "router holds");
+
+        // The empty multicall sweeps the router's balance back to alice,
+        // taxed a third time on the way. Alice ending with exactly
+        // `delivered` minus that sweep fee pins that the router really did
+        // hold `delivered`, not the proxy's receipt.
+        assertEq(
+            feeToken.balanceOf(alice.addr),
+            delivered - (delivered * feeToken.FEE_BPS()) / 10_000,
+            "router receipt overstated"
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────

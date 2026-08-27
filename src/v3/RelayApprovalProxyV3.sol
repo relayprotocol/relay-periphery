@@ -396,9 +396,24 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             balanceBefore;
 
         if (received > 0) {
+            // The forwarding leg can be taxed again by a fee-on-transfer
+            // token, so report the router's balance delta rather than the
+            // proxy's receipt: downstream consumers size against what the
+            // router actually holds.
+            uint256 routerBalanceBefore = IERC20(token).balanceOf(ROUTER);
             IERC20(token).safeTransfer(ROUTER, received);
+            uint256 delivered = IERC20(token).balanceOf(ROUTER) -
+                routerBalanceBefore;
 
-            emit FundsMovement(permit.from, ROUTER, token, received, metadata);
+            if (delivered > 0) {
+                emit FundsMovement(
+                    permit.from,
+                    ROUTER,
+                    token,
+                    delivered,
+                    metadata
+                );
+            }
         }
     }
 
