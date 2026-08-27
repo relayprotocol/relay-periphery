@@ -9,23 +9,23 @@ import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfe
 import {EIP712} from "solady/src/utils/EIP712.sol";
 import {Vm} from "forge-std/Vm.sol";
 
-import {Call3Value} from "../../src/common/Multicall3.sol";
-import {Permit2612V3, Permit3009} from "../../src/common/Permits.sol";
-import {RelayApprovalProxyV3} from "../../src/v3/RelayApprovalProxyV3.sol";
-import {RelayRouterV3} from "../../src/v3/RelayRouterV3.sol";
+import {Call3Value} from "../src/common/Multicall3.sol";
+import {Permit2612, Permit3009} from "../src/common/Permits.sol";
+import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
+import {RelayRouter} from "../src/RelayRouter.sol";
 
-import {BaseTest} from "../base/BaseTest.sol";
-import {IUniswapV2Router01} from "../interfaces/IUniswapV2Router02.sol";
-import {NoOpERC20} from "../mocks/NoOpERC20.sol";
-import {TestERC3009} from "../mocks/TestERC3009.sol";
-import {TestERC3009Fee} from "../mocks/TestERC3009Fee.sol";
-import {TestERC20Permit} from "../mocks/TestERC20Permit.sol";
-import {TestERC721} from "../mocks/TestERC721.sol";
-import {TestERC721_ERC20PaymentToken} from "../mocks/TestERC721_ERC20PaymentToken.sol";
+import {BaseTest} from "./base/BaseTest.sol";
+import {IUniswapV2Router01} from "./interfaces/IUniswapV2Router02.sol";
+import {NoOpERC20} from "./mocks/NoOpERC20.sol";
+import {TestERC3009} from "./mocks/TestERC3009.sol";
+import {TestERC3009Fee} from "./mocks/TestERC3009Fee.sol";
+import {TestERC20Permit} from "./mocks/TestERC20Permit.sol";
+import {TestERC721} from "./mocks/TestERC721.sol";
+import {TestERC721_ERC20PaymentToken} from "./mocks/TestERC721_ERC20PaymentToken.sol";
 
 // Tests
 
-contract RouterAndApprovalV3Test is BaseTest, EIP712 {
+contract RouterAndApprovalTest is BaseTest, EIP712 {
     using SafeERC20 for IERC20;
 
     // Errors
@@ -49,8 +49,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         IAllowanceHolder(payable(0x0000000000001fF3684f28c67538d4D072C22734));
 
     // Fields to be set
-    RelayRouterV3 router;
-    RelayApprovalProxyV3 approvalProxy;
+    RelayRouter router;
+    RelayApprovalProxy approvalProxy;
 
     // Various type-hashes / type-strings
     bytes32 public constant _CALL3VALUE_TYPEHASH =
@@ -99,8 +99,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         super.setUp();
 
         // Deploy router and approval-proxy contracts
-        router = new RelayRouterV3();
-        approvalProxy = new RelayApprovalProxyV3(
+        router = new RelayRouter();
+        approvalProxy = new RelayApprovalProxy(
             address(this),
             address(router),
             address(PERMIT2)
@@ -690,8 +690,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
 
-        Permit2612V3[] memory permits = new Permit2612V3[](1);
-        permits[0] = Permit2612V3({
+        Permit2612[] memory permits = new Permit2612[](1);
+        permits[0] = Permit2612({
             token: address(erc20_permit),
             owner: alice.addr,
             value: 1 ether,
@@ -761,8 +761,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(alice.key, eip712PermitHash);
 
-        Permit2612V3[] memory permits = new Permit2612V3[](1);
-        permits[0] = Permit2612V3({
+        Permit2612[] memory permits = new Permit2612[](1);
+        permits[0] = Permit2612({
             token: address(erc20_permit),
             owner: alice.addr,
             value: 1 ether,
@@ -1193,7 +1193,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
             vm.sign(bob.key, bobPermitHash);
 
         bytes[] memory mismatchedMulticallSignatures = new bytes[](1);
-        vm.expectRevert(RelayApprovalProxyV3.ArrayLengthsMismatch.selector);
+        vm.expectRevert(RelayApprovalProxy.ArrayLengthsMismatch.selector);
         approvalProxy.permit3009TransferAndMulticall(
             permits,
             tokens,
@@ -1214,7 +1214,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         subsetSignatures[0] = multicallSignatures[0];
         vm.prank(alice.addr);
         vm.expectRevert(
-            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+            RelayApprovalProxy.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             subsetPermits,
@@ -1238,7 +1238,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         Permit3009[] memory emptyPermits = new Permit3009[](0);
         address[] memory emptyTokens = new address[](0);
         bytes[] memory emptyMulticallSignatures = new bytes[](0);
-        vm.expectRevert(RelayApprovalProxyV3.PermitsCannotBeEmpty.selector);
+        vm.expectRevert(RelayApprovalProxy.PermitsCannotBeEmpty.selector);
         approvalProxy.permit3009TransferAndMulticall(
             emptyPermits,
             emptyTokens,
@@ -1254,7 +1254,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
 
         vm.prank(bob.addr);
         vm.expectRevert(
-            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+            RelayApprovalProxy.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             permits,
@@ -1274,7 +1274,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         );
         vm.prank(alice.addr);
         vm.expectRevert(
-            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+            RelayApprovalProxy.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             permits,
@@ -1293,7 +1293,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         bytes[] memory missingMulticallSignatures = new bytes[](2);
         vm.prank(alice.addr);
         vm.expectRevert(
-            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+            RelayApprovalProxy.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             permits,
@@ -1311,7 +1311,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         multicallSignatures[1] = aliceMulticallSignature;
         vm.prank(alice.addr);
         vm.expectRevert(
-            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+            RelayApprovalProxy.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             permits,
@@ -1567,7 +1567,7 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         vm.deal(bob.addr, 1 ether);
         vm.prank(bob.addr);
         vm.expectRevert(
-            RelayApprovalProxyV3.InvalidMulticallSignature.selector
+            RelayApprovalProxy.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall{value: 1 wei}(
             permits,
@@ -1813,8 +1813,8 @@ contract RouterAndApprovalV3Test is BaseTest, EIP712 {
         bytes32 domainSeparator = keccak256(
             abi.encode(
                 _DOMAIN_TYPEHASH,
-                keccak256(bytes("RelayApprovalProxyV3")),
-                keccak256(bytes("1")),
+                keccak256(bytes("RelayApprovalProxy")),
+                keccak256(bytes("3.1")),
                 block.chainid,
                 address(approvalProxy)
             )

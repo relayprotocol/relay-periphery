@@ -4,10 +4,12 @@ pragma solidity ^0.8.23;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 
-import {RelayApprovalProxyV2_1} from "../../src/v2.1/RelayApprovalProxyV2_1.sol";
-import {RelayRouterV2_1_NonTstore} from "../../src/v2.1/RelayRouterV2_1_NonTstore.sol";
+import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
+import {
+    RelayRouter_NonTstore
+} from "../src/RelayRouter_NonTstore.sol";
 
-contract RouterAndApprovalProxyV2_1_NonTstore_Deployer is Script {
+contract RouterAndApprovalProxy_NonTstore_Deployer is Script {
     // Thrown when the predicted address doesn't match the deployed address
     error IncorrectContractAddress(address predicted, address actual);
 
@@ -21,21 +23,20 @@ contract RouterAndApprovalProxyV2_1_NonTstore_Deployer is Script {
 
         vm.startBroadcast();
 
-        RelayRouterV2_1_NonTstore router = RelayRouterV2_1_NonTstore(
+        RelayRouter_NonTstore router = RelayRouter_NonTstore(
             payable(deployRouter())
         );
-        RelayApprovalProxyV2_1 approvalProxy = RelayApprovalProxyV2_1(
+        RelayApprovalProxy approvalProxy = RelayApprovalProxy(
             payable(deployApprovalProxy(address(router)))
         );
 
         assert(approvalProxy.owner() == msg.sender);
-        assert(approvalProxy.router() == address(router));
 
         vm.stopBroadcast();
     }
 
     function deployRouter() public returns (address) {
-        console2.log("Deploying RelayRouterV2_1_NonTstore");
+        console2.log("Deploying RelayRouter_NonTstore");
 
         address create2Factory = vm.envAddress("CREATE2_FACTORY");
 
@@ -50,7 +51,7 @@ contract RouterAndApprovalProxyV2_1_NonTstore_Deployer is Script {
                             SALT,
                             keccak256(
                                 abi.encodePacked(
-                                    type(RelayRouterV2_1_NonTstore).creationCode
+                                    type(RelayRouter_NonTstore).creationCode
                                 )
                             )
                         )
@@ -60,18 +61,18 @@ contract RouterAndApprovalProxyV2_1_NonTstore_Deployer is Script {
         );
 
         console2.log(
-            "Predicted address for RelayRouterV2_1_NonTstore",
+            "Predicted address for RelayRouter_NonTstore",
             predictedAddress
         );
 
         // Verify if the contract has already been deployed
         if (_hasBeenDeployed(predictedAddress)) {
-            console2.log("RelayRouterV2_1_NonTstore was already deployed");
+            console2.log("RelayRouter_NonTstore was already deployed");
             return predictedAddress;
         }
 
         // Deploy
-        RelayRouterV2_1_NonTstore router = new RelayRouterV2_1_NonTstore{
+        RelayRouter_NonTstore router = new RelayRouter_NonTstore{
             salt: SALT
         }();
 
@@ -80,13 +81,13 @@ contract RouterAndApprovalProxyV2_1_NonTstore_Deployer is Script {
             revert IncorrectContractAddress(predictedAddress, address(router));
         }
 
-        console2.log("RelayRouterV2_1_NonTstore deployed");
+        console2.log("RelayRouter_NonTstore deployed");
 
         return address(router);
     }
 
     function deployApprovalProxy(address router) public returns (address) {
-        console2.log("Deploying ApprovalProxyV2_1");
+        console2.log("Deploying ApprovalProxy");
 
         address create2Factory = vm.envAddress("CREATE2_FACTORY");
         address permit2 = vm.envAddress("PERMIT2");
@@ -102,7 +103,7 @@ contract RouterAndApprovalProxyV2_1_NonTstore_Deployer is Script {
                             SALT,
                             keccak256(
                                 abi.encodePacked(
-                                    type(RelayApprovalProxyV2_1).creationCode,
+                                    type(RelayApprovalProxy).creationCode,
                                     abi.encode(msg.sender, router, permit2)
                                 )
                             )
@@ -113,18 +114,18 @@ contract RouterAndApprovalProxyV2_1_NonTstore_Deployer is Script {
         );
 
         console2.log(
-            "Predicted address for RelayApprovalProxyV2_1",
+            "Predicted address for RelayApprovalProxy",
             predictedAddress
         );
 
         // Verify if the contract has already been deployed
         if (_hasBeenDeployed(predictedAddress)) {
-            console2.log("RelayApprovalProxyV2_1 was already deployed");
+            console2.log("RelayApprovalProxy was already deployed");
             return predictedAddress;
         }
 
         // Deploy
-        RelayApprovalProxyV2_1 approvalProxy = new RelayApprovalProxyV2_1{
+        RelayApprovalProxy approvalProxy = new RelayApprovalProxy{
             salt: SALT
         }(msg.sender, router, permit2);
 
@@ -136,7 +137,7 @@ contract RouterAndApprovalProxyV2_1_NonTstore_Deployer is Script {
             );
         }
 
-        console2.log("RelayApprovalProxyV2_1 deployed");
+        console2.log("RelayApprovalProxy deployed");
 
         return address(approvalProxy);
     }
