@@ -85,6 +85,10 @@ contract GasHungryOwner {
 ///             receive hook costs more than the stipend.
 ///           - VIG-RP-104: the proxy constructor accepted zero addresses for
 ///             immutables and for the owner of its only rescue function.
+///           - VIG-RP-092: withdraw() was the only fund-movement path in the
+///             proxy that emitted no FundsMovement.
+///           - VIG-RP-105: receive() accepted native tokens silently, so with
+///             092 the whole ETH lifecycle through the proxy was invisible.
 contract RouterProxyHardeningTest is Test {
     event FundsMovement(
         address from,
@@ -97,6 +101,7 @@ contract RouterProxyHardeningTest is Test {
     TestERC20 token;
     address permit2 = address(0xBEEF);
     address alice = address(0xA11CE);
+    address bob = address(0xB0B);
 
     function setUp() public {
         token = new TestERC20();
@@ -335,6 +340,70 @@ contract RouterProxyHardeningTest is Test {
         proxy.withdraw(address(token));
 
         assertEq(token.balanceOf(alice), 7 ether);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // VIG-RP-092 / 105: the proxy's own ETH lifecycle is observable
+    // ─────────────────────────────────────────────────────────────────
+
+    function test_receive_emitsFundsMovement() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+
+        vm.deal(bob, 1 ether);
+        vm.expectEmit(true, true, true, true, address(proxy));
+        emit FundsMovement(bob, address(proxy), address(0), 1 ether, "");
+
+        vm.prank(bob);
+        (bool ok, ) = address(proxy).call{value: 1 ether}("");
+        assertTrue(ok);
+    }
+
+    function test_withdrawNative_emitsFundsMovement() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+        vm.deal(address(proxy), 2 ether);
+
+        vm.expectEmit(true, true, true, true, address(proxy));
+        emit FundsMovement(address(proxy), alice, address(0), 2 ether, "");
+
+        vm.prank(alice);
+        proxy.withdraw(address(0));
+    }
+
+    function test_withdrawErc20_emitsFundsMovement() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+        token.mint(address(proxy), 5 ether);
+
+        vm.expectEmit(true, true, true, true, address(proxy));
+        emit FundsMovement(address(proxy), alice, address(token), 5 ether, "");
+
+        vm.prank(alice);
+        proxy.withdraw(address(token));
+    }
+
+    /// @notice Nothing to move, nothing to report.
+    function test_withdraw_noEventWhenEmpty() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+
+        vm.recordLogs();
+        vm.prank(alice);
+        proxy.withdraw(address(token));
+
+        bytes32 topic = keccak256(
+            "FundsMovement(address,address,address,uint256,bytes)"
+        );
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != topic, "phantom movement");
+        }
+    }
+
+    function _proxy(address owner) internal returns (RelayApprovalProxy) {
+        return
+            new RelayApprovalProxy(
+                owner,
+                address(new RelayRouter()),
+                permit2
+            );
     }
 
     // ─────────────────────────────────────────────────────────────────

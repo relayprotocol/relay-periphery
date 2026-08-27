@@ -40,6 +40,10 @@ contract RelayRouter is Multicall3, ReentrancyGuardMsgSender {
     /// @notice Revert if no recipient is set
     error NoRecipientSet();
 
+    /// @notice Revert if a nested multicall requests a different NFT recipient
+    ///         than the one already set by an enclosing frame
+    error RecipientAlreadySet(address current, address requested);
+
     /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();
 
@@ -102,16 +106,31 @@ contract RelayRouter is Multicall3, ReentrancyGuardMsgSender {
             );
         }
 
-        // Set the NFT recipient if provided
+        // Set the NFT recipient if provided. The reentrancy guard admits
+        // nested same-sender calls, so a call inside `calls` may re-enter
+        // `multicall`. Only the frame that acquired the recipient may clear
+        // it: a nested frame clearing it would leave every later NFT callback
+        // in the enclosing frame reading a zero recipient, reverting with
+        // `NoRecipientSet` — or, under `allowFailure`, swallowing that revert
+        // so the mint never happens and the multicall still reports success.
+        bool recipientSetHere;
         if (nftRecipient != address(0)) {
-            _setRecipient(nftRecipient);
+            address currentRecipient = _getRecipient();
+            if (currentRecipient == address(0)) {
+                _setRecipient(nftRecipient);
+                recipientSetHere = true;
+            } else if (currentRecipient != nftRecipient) {
+                revert RecipientAlreadySet(currentRecipient, nftRecipient);
+            }
         }
 
         // Perform the multicall
         returnData = _aggregate3Value(calls);
 
         // Clear the recipient in storage
-        _clearRecipient();
+        if (recipientSetHere) {
+            _clearRecipient();
+        }
 
         // Refund any leftover native tokens to the sender
         cleanupNative(0, refundTo, metadata);

@@ -80,7 +80,15 @@ contract RelayApprovalProxy is Ownable, EIP712 {
             "RelayerWitness(address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
 
-    receive() external payable {}
+    receive() external payable {
+        emit FundsMovement(
+            msg.sender,
+            address(this),
+            address(0),
+            msg.value,
+            ""
+        );
+    }
 
     constructor(address _owner, address _router, address _permit2) {
         // `ROUTER` and `PERMIT2` are immutable and `_owner` gates the only
@@ -100,13 +108,17 @@ contract RelayApprovalProxy is Ownable, EIP712 {
 
     /// @notice Withdraw function in case funds get stuck in contract
     function withdraw(address token) external onlyOwner {
+        uint256 amount;
         if (token == address(0)) {
-            _send(msg.sender, address(this).balance);
+            amount = address(this).balance;
+            _send(msg.sender, amount);
         } else {
-            IERC20(token).safeTransfer(
-                msg.sender,
-                IERC20(token).balanceOf(address(this))
-            );
+            amount = IERC20(token).balanceOf(address(this));
+            IERC20(token).safeTransfer(msg.sender, amount);
+        }
+
+        if (amount > 0) {
+            emit FundsMovement(address(this), msg.sender, token, amount, "");
         }
     }
 
