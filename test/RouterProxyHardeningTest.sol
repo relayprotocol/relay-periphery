@@ -458,7 +458,10 @@ contract RouterProxyHardeningTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(
-            RelayApprovalProxy.RecipientCannotBeZeroAddress.selector
+            abi.encodeWithSelector(
+                RelayApprovalProxy.InvalidRecipient.selector,
+                address(0)
+            )
         );
         proxy.withdraw(address(0), address(0));
 
@@ -471,9 +474,48 @@ contract RouterProxyHardeningTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(
-            RelayApprovalProxy.RecipientCannotBeZeroAddress.selector
+            abi.encodeWithSelector(
+                RelayApprovalProxy.InvalidRecipient.selector,
+                address(0)
+            )
         );
         proxy.withdraw(address(token), address(0));
+
+        assertEq(token.balanceOf(address(proxy)), 1 ether);
+    }
+
+    /// @notice The proxy itself is rejected too. Without this, an ERC-20
+    ///         self-transfer left the balance in place while emitting a
+    ///         FundsMovement claiming a recovery, and the native branch
+    ///         emitted two — the second from re-entering receive().
+    function test_withdrawRejectsSelfRecipient_native() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+        vm.deal(address(proxy), 1 ether);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RelayApprovalProxy.InvalidRecipient.selector,
+                address(proxy)
+            )
+        );
+        proxy.withdraw(address(0), address(proxy));
+
+        assertEq(address(proxy).balance, 1 ether, "balance should be untouched");
+    }
+
+    function test_withdrawRejectsSelfRecipient_erc20() public {
+        RelayApprovalProxy proxy = _proxy(alice);
+        token.mint(address(proxy), 1 ether);
+
+        vm.prank(alice);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RelayApprovalProxy.InvalidRecipient.selector,
+                address(proxy)
+            )
+        );
+        proxy.withdraw(address(token), address(proxy));
 
         assertEq(token.balanceOf(address(proxy)), 1 ether);
     }

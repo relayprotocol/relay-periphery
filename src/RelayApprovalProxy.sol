@@ -43,8 +43,8 @@ contract RelayApprovalProxy is Ownable, EIP712 {
     /// @notice Revert if no ERC3009 permits are provided
     error PermitsCannotBeEmpty();
 
-    /// @notice Revert if the withdraw recipient is the zero address
-    error RecipientCannotBeZeroAddress();
+    /// @notice Revert if the withdraw recipient cannot receive the funds
+    error InvalidRecipient(address recipient);
 
     /// @notice Revert if the refundTo address is zero address
     error RefundToCannotBeZeroAddress();
@@ -118,14 +118,19 @@ contract RelayApprovalProxy is Ownable, EIP712 {
     ///         destination — a hardware wallet or multisig owner can sweep
     ///         straight to a treasury without a second hop, and an owner
     ///         whose key is being rotated can still direct funds elsewhere.
+    ///         Neither the zero address nor this contract is accepted.
     /// @param token The token to withdraw, or `address(0)` for native
     /// @param recipient The address to send the funds to
     function withdraw(
         address token,
         address recipient
     ) external onlyOwner {
-        if (recipient == address(0)) {
-            revert RecipientCannotBeZeroAddress();
+        // Zero would burn the balance this function exists to rescue, and
+        // this contract would leave it in place while `FundsMovement` claimed
+        // a recovery — twice over for native, since a value-bearing self-call
+        // re-enters `receive()`. A successful withdraw must move funds out.
+        if (recipient == address(0) || recipient == address(this)) {
+            revert InvalidRecipient(recipient);
         }
 
         uint256 amount;
