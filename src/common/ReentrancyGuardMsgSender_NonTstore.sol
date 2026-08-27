@@ -17,12 +17,14 @@ abstract contract ReentrancyGuardMsgSender_NonTstore {
     constructor() {}
 
     modifier nonReentrant() {
-        _nonReentrantBefore();
+        bool isOutermostCall = _nonReentrantBefore();
         _;
-        _nonReentrantAfter();
+        if (isOutermostCall) {
+            _nonReentrantAfter();
+        }
     }
 
-    function _nonReentrantBefore() private {
+    function _nonReentrantBefore() private returns (bool isOutermostCall) {
         address sender = msg.sender;
 
         // Load the stored sender from the transient slot
@@ -37,10 +39,16 @@ abstract contract ReentrancyGuardMsgSender_NonTstore {
             revert InvalidMsgSender(storedSender, sender);
         }
 
-        // Any calls to nonReentrant after this point will fail
-        assembly ("memory-safe") {
-            sstore(MSG_SENDER_STORAGE_SLOT, sender)
+        // Only the outermost frame acquires the guard. Allowed nested calls
+        // must not overwrite it or clear it when their modifiers exit.
+        if (storedSender == address(0)) {
+            assembly ("memory-safe") {
+                sstore(MSG_SENDER_STORAGE_SLOT, sender)
+            }
+            return true;
         }
+
+        return false;
     }
 
     function _nonReentrantAfter() private {
