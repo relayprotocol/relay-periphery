@@ -43,4 +43,4 @@ In case `forge` doesn't have any default explorer for a given chain, make sure t
 Some chains do not support the default EVM version used by the contracts (Cancun). In that case, we default to compiling using the London EVM version. Since that version does not support features like transient storage, we need to use the `_NonTstore` version of the `RelayRouter`. This implies two things:
 
 - use the `RouterAndApprovalProxy_NonTstore_Deployer` script (`./script/RouterAndApprovalProxy_NonTstore_Deployer.s.sol`)
-- adjust the `forge script` command by passing `--contracts src/Relay*` (this will result in `forge` skipping compilation for some files that use unsupported features)
+- adjust the `forge script` command by passing `--skip Test.sol --skip RelayRouter.sol --skip ReentrancyGuardMsgSender.sol --skip RouterAndApprovalProxyDeployer.s.sol` (this makes `forge` skip the transient-storage sources and everything that imports them, which the London EVM version cannot compile) — `./deployments/v3/scripts/deploy_non_tstore.sh` already does this
