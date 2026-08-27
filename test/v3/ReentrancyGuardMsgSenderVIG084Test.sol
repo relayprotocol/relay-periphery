@@ -67,7 +67,9 @@ contract ReentrancyGuardMsgSenderVIG084Test is Test {
     }
 
     function _assertNestedCallDoesNotClearGuard(address router) private {
-        RelayApprovalProxyV3 approvalProxy = new RelayApprovalProxyV3(address(this), router, address(0));
+        // Permit2 is unused on this path but must be non-zero.
+        RelayApprovalProxyV3 approvalProxy =
+            new RelayApprovalProxyV3(address(this), router, makeAddr("permit2"));
 
         address refundTo = makeAddr("refundTo");
         address attemptedRecipient = makeAddr("attemptedRecipient");

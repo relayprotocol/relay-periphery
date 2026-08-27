@@ -46,6 +46,17 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     event SolverNativeTransfer(address to, uint256 amount);
 
     /// @notice Emitted on any explicit movement of funds
+    /// @param from The address the funds left
+    /// @param to The counterparty of the movement. For direct transfers
+    ///        (`multicall`, `cleanupErc20s`, `cleanupNative`,
+    ///        `cleanupNativeViaCall`) this is the address the funds were sent
+    ///        to. For `cleanupErc20sViaCall` it is the call target the router
+    ///        approved, which spends the allowance from within its own code
+    ///        and may deliver the tokens to a different final recipient that
+    ///        the router cannot observe.
+    /// @param currency The token moved, or address(0) for native tokens
+    /// @param amount The amount that actually left `from`
+    /// @param metadata Additional data associated with the movement
     event FundsMovement(
         address from,
         address to,
@@ -154,6 +165,12 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     /// @param tos The target addresses for the calls
     /// @param datas The data for the calls
     /// @param amounts The amounts to send
+    /// @dev    Emits `FundsMovement` with empty metadata: unlike `cleanupErc20s`
+    ///         this entrypoint takes no metadata argument, so movements cannot be
+    ///         correlated off-chain by request id. The event's `to` is the call
+    ///         target the allowance was granted to, not necessarily the final
+    ///         token recipient — the target may `transferFrom` the router to a
+    ///         third party, which the router cannot observe.
     function cleanupErc20sViaCall(
         address[] calldata tokens,
         address[] calldata tos,
@@ -174,10 +191,10 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
             address to = tos[i];
             bytes calldata data = datas[i];
 
+            uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+
             // Get the amount to transfer
-            uint256 amount = amounts[i] == 0
-                ? IERC20(token).balanceOf(address(this))
-                : amounts[i];
+            uint256 amount = amounts[i] == 0 ? balanceBefore : amounts[i];
 
             if (amount > 0) {
                 // Approve the target for the call. Use safeApproveWithRetry to
@@ -191,6 +208,20 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
                 (bool success, ) = to.call(data);
                 if (!success) {
                     revert CallFailed();
+                }
+
+                // Emit the amount the target actually consumed, which can be
+                // less than the amount approved. `to` is the approved spender,
+                // not necessarily the final holder of the tokens.
+                uint256 balanceAfter = IERC20(token).balanceOf(address(this));
+                if (balanceBefore > balanceAfter) {
+                    emit FundsMovement(
+                        address(this),
+                        to,
+                        token,
+                        balanceBefore - balanceAfter,
+                        ""
+                    );
                 }
             }
         }
@@ -232,6 +263,8 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
     /// @param amount The amount of native tokens to transfer
     /// @param to The target address of the call
     /// @param data The data for the call
+    /// @dev    Emits `FundsMovement` with empty metadata, and does not emit
+    ///         `SolverNativeTransfer` (unlike `cleanupNative`).
     function cleanupNativeViaCall(
         uint256 amount,
         address to,
@@ -244,6 +277,14 @@ contract RelayRouterV3 is Multicall3, ReentrancyGuardMsgSender {
             if (!success) {
                 revert CallFailed();
             }
+
+            emit FundsMovement(
+                address(this),
+                to,
+                address(0),
+                amountToTransfer,
+                ""
+            );
         }
     }
 
