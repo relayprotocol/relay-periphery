@@ -17,7 +17,7 @@ import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 import {IRelayRouterV3} from "./interfaces/IRelayRouterV3.sol";
 import {IERC3009} from "../common/IERC3009.sol";
 import {Call3Value, Result} from "../common/Multicall3.sol";
-import {Permit2612, Permit3009} from "../common/Permits.sol";
+import {Permit2612V3, Permit3009} from "../common/Permits.sol";
 
 contract RelayApprovalProxyV3 is Ownable, EIP712 {
     using SafeERC20 for IERC20;
@@ -67,13 +67,13 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         );
     bytes32 public constant _MULTICALL_AUTHORIZATION_TYPEHASH =
         keccak256(
-            "MulticallAuthorization(address from,address relayer,address refundTo,address nftRecipient,bytes metadata,uint256 fundingIndex,Call3Value[] calls,FundingAuthorization[] funding)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)FundingAuthorization(address token,address from,uint256 value,uint256 validAfter,uint256 validBefore)"
+            "MulticallAuthorization(address from,address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,uint256 fundingIndex,Call3Value[] calls,FundingAuthorization[] funding)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)FundingAuthorization(address token,address from,uint256 value,uint256 validAfter,uint256 validBefore)"
         );
     string public constant _RELAYER_WITNESS_TYPE_STRING =
-        "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
+        "RelayerWitness witness)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)RelayerWitness(address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)TokenPermissions(address token,uint256 amount)";
     bytes32 public constant _RELAYER_WITNESS_TYPEHASH =
         keccak256(
-            "RelayerWitness(address relayer,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
+            "RelayerWitness(address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
 
     receive() external payable {}
@@ -138,13 +138,15 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         for (uint256 i = 0; i < tokens.length; i++) {
             IERC20(tokens[i]).safeTransferFrom(msg.sender, ROUTER, amounts[i]);
 
-            emit FundsMovement(
-                msg.sender,
-                ROUTER,
-                tokens[i],
-                amounts[i],
-                metadata
-            );
+            if (amounts[i] > 0) {
+                emit FundsMovement(
+                    msg.sender,
+                    ROUTER,
+                    tokens[i],
+                    amounts[i],
+                    metadata
+                );
+            }
         }
 
         // Call multicall on the router
@@ -167,7 +169,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
     /// @param metadata Additional data to associate the call to
     /// @return returnData The return data from the multicall
     function permitTransferAndMulticall(
-        Permit2612[] calldata permits,
+        Permit2612V3[] calldata permits,
         Call3Value[] calldata calls,
         address refundTo,
         address nftRecipient,
@@ -180,7 +182,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
 
         address[] memory tokens = new address[](permits.length);
         for (uint256 i = 0; i < permits.length; i++) {
-            Permit2612 memory permit = permits[i];
+            Permit2612V3 memory permit = permits[i];
             tokens[i] = permit.token;
 
             // Revert if the permit owner is not the msg.sender
@@ -207,13 +209,15 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
                 permit.value
             );
 
-            emit FundsMovement(
-                permit.owner,
-                ROUTER,
-                permit.token,
-                permit.value,
-                metadata
-            );
+            if (permit.value > 0) {
+                emit FundsMovement(
+                    permit.owner,
+                    ROUTER,
+                    permit.token,
+                    permit.value,
+                    metadata
+                );
+            }
         }
 
         // Call multicall on the router
@@ -225,6 +229,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         );
 
         _cleanupErc20s(tokens, refundTo, metadata);
+        IRelayRouterV3(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     /// @notice Use Permit2 to transfer tokens to RelayRouter and perform an arbitrary multicall.
@@ -278,12 +283,15 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         if (permitSignature.length != 0) {
             _cleanupErc20s(tokens, refundTo, metadata);
         }
+        IRelayRouterV3(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     /// @notice Use ERC3009 authorizations to transfer tokens to RelayRouter and execute a signed multicall
     /// @dev    The user must sign the MulticallAuthorization typed data in addition to each ERC3009 authorization.
     ///         The typed-data digest is used as each ERC3009 nonce, cryptographically binding the complete ordered
     ///         funding batch to the displayed call targets, values, data, and other execution parameters.
+    ///         `msgValue` in the authorization is the exact native value the relayer must attach, so the relayer
+    ///         cannot under-fund calls that carry a value and rely on `allowFailure` to swallow the shortfall.
     /// @param permits An array of permits
     /// @param tokens An array of tokens corresponding to the permits
     /// @param calls The calls to perform
@@ -342,6 +350,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
         );
 
         _cleanupErc20s(tokens, refundTo, metadata);
+        IRelayRouterV3(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     function _handlePermit3009(
@@ -375,6 +384,8 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             revert InvalidMulticallSignature();
         }
 
+        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+
         // The authorization digest is also the ERC3009 nonce, so this
         // authorization cannot be used with different multicall details.
         IERC3009(token).receiveWithAuthorization(
@@ -389,15 +400,34 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
             permit.s
         );
 
-        IERC20(token).safeTransfer(ROUTER, permit.value);
+        // Forward what actually landed rather than the authorized amount. A
+        // fee-on-transfer ERC3009 token delivers less than `permit.value`, and
+        // forwarding the authorized amount would revert on the shortfall. The
+        // delta is used instead of the full balance so that any unrelated
+        // balance already sitting on this contract is left alone.
+        uint256 received = IERC20(token).balanceOf(address(this)) -
+            balanceBefore;
 
-        emit FundsMovement(
-            permit.from,
-            ROUTER,
-            token,
-            permit.value,
-            metadata
-        );
+        if (received > 0) {
+            // The forwarding leg can be taxed again by a fee-on-transfer
+            // token, so report the router's balance delta rather than the
+            // proxy's receipt: downstream consumers size against what the
+            // router actually holds.
+            uint256 routerBalanceBefore = IERC20(token).balanceOf(ROUTER);
+            IERC20(token).safeTransfer(ROUTER, received);
+            uint256 delivered = IERC20(token).balanceOf(ROUTER) -
+                routerBalanceBefore;
+
+            if (delivered > 0) {
+                emit FundsMovement(
+                    permit.from,
+                    ROUTER,
+                    token,
+                    delivered,
+                    metadata
+                );
+            }
+        }
     }
 
     /// @notice Internal function to get the hash of a list of `Call3Value` structs
@@ -469,6 +499,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
                         _MULTICALL_AUTHORIZATION_TYPEHASH,
                         user,
                         msg.sender,
+                        msg.value,
                         refundTo,
                         nftRecipient,
                         keccak256(metadata),
@@ -485,6 +516,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
     /// @param nftRecipient The nftRecipient address
     /// @param metadata Additional data to associate the call to
     /// @param calls The calls to be executed
+    /// @dev   Binds `msg.value` so the relayer cannot under-fund value-carrying calls
     function _getRelayerWitnessHash(
         address refundTo,
         address nftRecipient,
@@ -496,6 +528,7 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
                 abi.encode(
                     _RELAYER_WITNESS_TYPEHASH,
                     msg.sender,
+                    msg.value,
                     refundTo,
                     nftRecipient,
                     keccak256(metadata),
@@ -544,13 +577,15 @@ contract RelayApprovalProxyV3 is Ownable, EIP712 {
                     requestedAmount: amount
                 });
 
-            emit FundsMovement(
-                user,
-                ROUTER,
-                permit.permitted[i].token,
-                amount,
-                metadata
-            );
+            if (amount > 0) {
+                emit FundsMovement(
+                    user,
+                    ROUTER,
+                    permit.permitted[i].token,
+                    amount,
+                    metadata
+                );
+            }
         }
 
         // Use the SignatureTransferDetails and permit signature to transfer tokens to the router

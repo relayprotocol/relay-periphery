@@ -18,4 +18,9 @@ interface IRelayRouterV3 {
         bytes calldata metadata
     ) external;
 
+    function cleanupNative(
+        uint256 amount,
+        address recipient,
+        bytes calldata metadata
+    ) external;
 }
