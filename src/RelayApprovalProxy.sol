@@ -81,13 +81,15 @@ contract RelayApprovalProxy is Ownable, EIP712 {
         );
 
     receive() external payable {
-        emit FundsMovement(
-            msg.sender,
-            address(this),
-            address(0),
-            msg.value,
-            ""
-        );
+        if (msg.value > 0) {
+            emit FundsMovement(
+                msg.sender,
+                address(this),
+                address(0),
+                msg.value,
+                ""
+            );
+        }
     }
 
     constructor(address _owner, address _router, address _permit2) {
