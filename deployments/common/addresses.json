@@ -1,0 +1,47 @@
+[
+  {
+    "name": "ethereum",
+    "chainId": 1,
+    "onlyOwnerMulticaller": "0xfc4ef5dff5a5e2c0d381ae073ad7ebb20ac60be2"
+  },
+  {
+    "name": "optimism",
+    "chainId": 10,
+    "onlyOwnerMulticaller": "0xfc4ef5dff5a5e2c0d381ae073ad7ebb20ac60be2"
+  },
+  {
+    "name": "unichain",
+    "chainId": 130,
+    "onlyOwnerMulticaller": "0xfc4ef5dff5a5e2c0d381ae073ad7ebb20ac60be2"
+  },
+  {
+    "name": "polygon",
+    "chainId": 137,
+    "onlyOwnerMulticaller": "0xfc4ef5dff5a5e2c0d381ae073ad7ebb20ac60be2"
+  },
+  {
+    "name": "worldchain",
+    "chainId": 480,
+    "onlyOwnerMulticaller": "0xfc4ef5dff5a5e2c0d381ae073ad7ebb20ac60be2"
+  },
+  {
+    "name": "hyperevm",
+    "chainId": 999,
+    "onlyOwnerMulticaller": "0xfc4ef5dff5a5e2c0d381ae073ad7ebb20ac60be2"
+  },
+  {
+    "name": "base",
+    "chainId": 8453,
+    "onlyOwnerMulticaller": "0xfc4ef5dff5a5e2c0d381ae073ad7ebb20ac60be2"
+  },
+  {
+    "name": "arbitrum",
+    "chainId": 42161,
+    "onlyOwnerMulticaller": "0xfc4ef5dff5a5e2c0d381ae073ad7ebb20ac60be2"
+  },
+  {
+    "name": "avalanche",
+    "chainId": 43114,
+    "onlyOwnerMulticaller": "0xfc4ef5dff5a5e2c0d381ae073ad7ebb20ac60be2"
+  }
+]
