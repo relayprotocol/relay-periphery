@@ -9,6 +9,16 @@ Both scripts require the following environment variables:
 - `PERMIT2`: the address of the `PERMIT2` contract to use for `ApprovalProxy` - the default permit2 should be deployed at `0x000000000022d473030f116ddee9f6b43ac78ba3`, in case it's not available on a given chain we should deploy it there or otherwise use a different permit2
 - `ETHERSCAN_API_KEY`: the API key needed to verify the contracts on Etherscan-powered explorers
 
+### Before deploying 3.2
+
+Router 3.2 changes the `SolverCallExecuted` event: it emits `keccak256(callData)` as
+`bytes32 dataHash` instead of the calldata, so the event's topic changes. The oracle's
+`verifySolverCalls` must accept that shape before any 3.2 router takes fills, or every
+fill on that chain fails attestation until it does. The oracle release that decodes both
+shapes has to be live first. `RelayApprovalProxy` is unchanged and stays at version 3.1;
+its version string is the EIP-712 domain version that multicall authorizations are signed
+against, so it only moves when the proxy itself changes.
+
 ### Deployment
 
 The deployment can be triggered via the following command:
