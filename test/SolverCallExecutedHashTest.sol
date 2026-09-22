@@ -67,7 +67,9 @@ contract SolverCallExecutedHashTest is Test {
 
     function _logDataIsThreeWords(address router) internal {
         bytes memory big = new bytes(5000);
-        for (uint256 i = 0; i < big.length; i++) big[i] = bytes1(uint8(i));
+        for (uint256 i = 0; i < big.length; i++) {
+            big[i] = bytes1(uint8(i));
+        }
 
         vm.recordLogs();
         vm.prank(alice);
@@ -80,10 +82,7 @@ contract SolverCallExecutedHashTest is Test {
             if (logs[i].topics[0] == topic) {
                 found = true;
                 assertEq(logs[i].data.length, 96);
-                (address to, bytes32 dataHash, uint256 amount) = abi.decode(
-                    logs[i].data,
-                    (address, bytes32, uint256)
-                );
+                (address to, bytes32 dataHash, uint256 amount) = abi.decode(logs[i].data, (address, bytes32, uint256));
                 assertEq(to, address(sink));
                 assertEq(dataHash, keccak256(big));
                 assertEq(amount, 0);
