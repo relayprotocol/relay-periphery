@@ -35,10 +35,8 @@ contract Multicall3 {
     ///         calls' events before the enclosing call's event
     /// @dev    Carries `keccak256(callData)` rather than the calldata. The
     ///         calldata is already committed by the order the solver signed,
-    ///         so a consumer that holds the order can check the hash; echoing
-    ///         the bytes only paid 8 gas per byte of log data for a copy of
-    ///         something it already had, which on chains with long aggregator
-    ///         calldata was over one percent of all gas used
+    ///         so a consumer that holds the order checks the hash instead of
+    ///         paying for a copy of bytes it already has
     /// @param to The call's target
     /// @param dataHash `keccak256` of the call's calldata
     /// @param amount The native value forwarded with the call
@@ -81,7 +79,7 @@ contract Multicall3 {
             }
 
             if (result.success) {
-                emit SolverCallExecuted(calli.target, keccak256(callData), calli.value);
+                emit SolverCallExecuted(calli.target, keccak256(callData), val);
             }
 
             unchecked {

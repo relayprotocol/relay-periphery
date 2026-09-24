@@ -6,10 +6,12 @@ out = "out"
 libs = ["lib"]
 via_ir = true
 optimizer = true
-# The router is the hot path of every fill, so it is compiled for runtime gas rather than
-# size: about 1.7k gas less per fill for 1.6 KB more code. Settle these before a version's
-# first deployment and freeze them after: they are part of the creationCode and therefore
-# of the CREATE2 address on every chain. Set for 3.2, whose address moves anyway.
+# Router 3.2 and its proxy are compiled for runtime gas rather than size: about 300 gas less
+# per router fill and 1.7k less per proxy deposit, for 1.6 KB (router) and 3 KB (proxy) more
+# code. Settle these before a version's first deployment and freeze them after: they are part
+# of the creationCode and therefore of the CREATE2 address on every chain. Versions 3.0 and 3.1
+# were compiled at the compiler default of 200 runs; verify those with `--optimizer-runs 200`.
+# RelayReceiver keeps 200 through the `receiver` profile so its address does not move.
 optimizer_runs = 1_000_000
 bytecode_hash = "none"
 cbor_metadata = false
@@ -23,6 +25,21 @@ libs = ["lib"]
 via_ir = true
 optimizer = true
 optimizer_runs = 1_000_000
+bytecode_hash = "none"
+cbor_metadata = false
+
+# RelayReceiver deploys through CREATE2 from its creation code, and the receivers already
+# deployed were compiled at 200 runs. Deploy new receivers with FOUNDRY_PROFILE=receiver so
+# every chain gets the same receiver address.
+[profile.receiver]
+solc_version = "0.8.28"
+evm_version = "cancun"
+src = "src"
+out = "out"
+libs = ["lib"]
+via_ir = true
+optimizer = true
+optimizer_runs = 200
 bytecode_hash = "none"
 cbor_metadata = false
 

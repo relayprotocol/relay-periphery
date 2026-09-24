@@ -23,6 +23,13 @@ contract Sink {
     }
 }
 
+/// @notice A target that always reverts, for the allowFailure path
+contract Reverter {
+    fallback() external payable {
+        revert("nope");
+    }
+}
+
 /// @title  SolverCallExecuted carries a calldata hash
 /// @notice The router used to copy every solver call's calldata into the
 ///         event, 8 gas per byte of log data for bytes the order already
@@ -63,6 +70,53 @@ contract SolverCallExecutedHashTest is Test {
 
     function test_logDataIsThreeWords_nonTstore() public {
         _logDataIsThreeWords(address(new RelayRouter_NonTstore()));
+    }
+
+    /// @notice Empty calldata hashes to keccak256("") and still emits
+    function test_emptyCalldata_tstore() public {
+        _emitsHashOfEmptyCalldata(address(new RelayRouter()));
+    }
+
+    function test_emptyCalldata_nonTstore() public {
+        _emitsHashOfEmptyCalldata(address(new RelayRouter_NonTstore()));
+    }
+
+    /// @notice A call that fails under allowFailure emits nothing
+    function test_failedCallEmitsNothing_tstore() public {
+        _failedCallEmitsNothing(address(new RelayRouter()));
+    }
+
+    function test_failedCallEmitsNothing_nonTstore() public {
+        _failedCallEmitsNothing(address(new RelayRouter_NonTstore()));
+    }
+
+    /// @notice Both routers report the version that ships the hashed event
+    function test_version() public {
+        assertEq(new RelayRouter().VERSION(), "3.2");
+        assertEq(new RelayRouter_NonTstore().VERSION(), "3.2");
+    }
+
+    function _emitsHashOfEmptyCalldata(address router) internal {
+        vm.expectEmit(false, false, false, true, router);
+        emit SolverCallExecuted(address(sink), keccak256(""), 0);
+        vm.prank(alice);
+        IRelayRouter(router).multicall(_calls("", 0), alice, address(0), "");
+        assertEq(sink.hits(), 1);
+    }
+
+    function _failedCallEmitsNothing(address router) internal {
+        Call3Value[] memory calls = new Call3Value[](1);
+        calls[0] = Call3Value({target: address(new Reverter()), allowFailure: true, value: 0, callData: hex"01"});
+
+        vm.recordLogs();
+        vm.prank(alice);
+        IRelayRouter(router).multicall(calls, alice, address(0), "");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        bytes32 topic = keccak256("SolverCallExecuted(address,bytes32,uint256)");
+        for (uint256 i = 0; i < logs.length; i++) {
+            assertTrue(logs[i].topics[0] != topic, "failed call must not emit SolverCallExecuted");
+        }
     }
 
     function _logDataIsThreeWords(address router) internal {
