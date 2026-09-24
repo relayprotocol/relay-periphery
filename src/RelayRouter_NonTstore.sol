@@ -34,7 +34,7 @@ contract RelayRouter_NonTstore is
 
     /// @notice Semantic version of this contract. Contract names are
     ///         unversioned; this constant is the version marker.
-    string public constant VERSION = "3.1";
+    string public constant VERSION = "3.2";
 
     /// @notice Revert if this contract is set as the recipient
     error InvalidRecipient(address recipient);

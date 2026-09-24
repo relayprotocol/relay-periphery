@@ -29,7 +29,18 @@ contract Multicall3 {
     /// @notice Revert if a call targets the zero address
     error InvalidTarget(address target);
 
-    event SolverCallExecuted(address to, bytes data, uint256 amount);
+    /// @notice Emitted for every solver call that succeeded, after it
+    ///         returns. Calls are made in order, so the events of one
+    ///         multicall land in call order; a nested multicall emits its own
+    ///         calls' events before the enclosing call's event
+    /// @dev    Carries `keccak256(callData)` rather than the calldata. The
+    ///         calldata is already committed by the order the solver signed,
+    ///         so a consumer that holds the order checks the hash instead of
+    ///         paying for a copy of bytes it already has
+    /// @param to The call's target
+    /// @param dataHash `keccak256` of the call's calldata
+    /// @param amount The native value forwarded with the call
+    event SolverCallExecuted(address to, bytes32 dataHash, uint256 amount);
 
     /// @notice Aggregate calls
     /// @param calls An array of Call3Value structs
@@ -53,7 +64,11 @@ contract Multicall3 {
             }
 
             uint256 val = calli.value;
-            (result.success, result.returnData) = calli.target.call{value: val}(calli.callData);
+            // One copy of the calldata into memory serves both the call and
+            // the hash below; passing the calldata slice to each would copy
+            // it twice
+            bytes memory callData = calli.callData;
+            (result.success, result.returnData) = calli.target.call{value: val}(callData);
 
             // Make sure to bubble-up any reverts
             if (!calli.allowFailure && !result.success) {
@@ -64,7 +79,7 @@ contract Multicall3 {
             }
 
             if (result.success) {
-                emit SolverCallExecuted(calli.target, calli.callData, calli.value);
+                emit SolverCallExecuted(calli.target, keccak256(callData), val);
             }
 
             unchecked {
