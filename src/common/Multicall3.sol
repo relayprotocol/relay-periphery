@@ -67,17 +67,18 @@ contract Multicall3 {
             // would then report the burn as a successful call. Reject it
             // regardless of `allowFailure`: a zero target is a malformed
             // call, not a failure worth tolerating.
-            if (calli.target == address(0)) {
+            address target = calli.target;
+            if (target == address(0)) {
                 revert InvalidTarget(address(0));
             }
-            _revertIfHookRegistry(calli.target);
+            _revertIfHookRegistry(target);
 
             uint256 val = calli.value;
             // One copy of the calldata into memory serves both the call and
             // the hash below; passing the calldata slice to each would copy
             // it twice
             bytes memory callData = calli.callData;
-            (result.success, result.returnData) = calli.target.call{value: val}(callData);
+            (result.success, result.returnData) = target.call{value: val}(callData);
 
             // Make sure to bubble-up any reverts
             if (!calli.allowFailure && !result.success) {
@@ -88,7 +89,7 @@ contract Multicall3 {
             }
 
             if (result.success) {
-                emit SolverCallExecuted(calli.target, keccak256(callData), val);
+                emit SolverCallExecuted(target, keccak256(callData), val);
             }
 
             unchecked {
