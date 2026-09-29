@@ -26,8 +26,16 @@ struct Result {
 /// @author Andreas Bigger <andreas@nascent.xyz>
 /// @author Matt Solomon <matt@mattsolomon.dev>
 contract Multicall3 {
-    /// @notice Revert if a call targets the zero address
+    /// @notice Revert if a call targets the zero address or a hook registry
     error InvalidTarget(address target);
+
+    /// @notice The ERC1820 registry, where ERC777 tokens look up an account's
+    ///         transfer hooks. Same address on every chain that has it
+    address internal constant ERC1820_REGISTRY = 0x1820a4B7618BdE71Dce8cdc73aAB6C95905faD24;
+
+    /// @notice The ERC820 registry, the draft ERC1820 replaced. Some early
+    ///         ERC777 tokens still read hooks from it
+    address internal constant ERC820_REGISTRY = 0x820b586C8C28125366C998641B09DCbE7d4cBF06;
 
     /// @notice Emitted for every solver call that succeeded, after it
     ///         returns. Calls are made in order, so the events of one
@@ -62,6 +70,7 @@ contract Multicall3 {
             if (calli.target == address(0)) {
                 revert InvalidTarget(address(0));
             }
+            _revertIfHookRegistry(calli.target);
 
             uint256 val = calli.value;
             // One copy of the calldata into memory serves both the call and
@@ -85,6 +94,22 @@ contract Multicall3 {
             unchecked {
                 ++i;
             }
+        }
+    }
+
+    /// @notice Revert if `target` is a hook registry. Every call site that
+    ///         makes a call with a caller chosen target and calldata must use
+    ///         this
+    /// @dev    This contract is msg.sender for its calls, so a registry call
+    ///         would set this contract's own hooks, which every ERC777 token
+    ///         then runs inside transfers into or out of it while it holds in
+    ///         flight funds, or hand its entries to a new manager for good. It
+    ///         needs no hook: ERC777 tokens move through it with `transfer`
+    ///         and `transferFrom`. Like the zero target check, this ignores
+    ///         `allowFailure`
+    function _revertIfHookRegistry(address target) internal pure {
+        if (target == ERC1820_REGISTRY || target == ERC820_REGISTRY) {
+            revert InvalidTarget(target);
         }
     }
 }
