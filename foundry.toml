@@ -28,6 +28,7 @@ fs_permissions = [{ access = "read", path = "./" }]
 etherscan_api_key = "${ETHERSCAN_API_KEY}"
 
 [rpc_endpoints]
+elysium = "${RPC_URL_ELYSIUM}"
 # Mainnets
 ethereum = "${RPC_URL_ETHEREUM}"
 optimism = "${RPC_URL_OPTIMISM}"

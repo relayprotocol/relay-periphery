@@ -1,0 +1,11 @@
+{
+  "name": "elysium",
+  "chainId": "ELYSIUM_MAINNET_CHAIN_ID",
+  "compilerVersion": "0.8.28",
+  "evmVersion": "ELYSIUM_CONFIRMED_EVM_VERSION",
+  "explorerUrl": "ELYSIUM_MAINNET_EXPLORER_URL",
+  "relayRouter": "ELYSIUM_DEPLOYED_ROUTER",
+  "relayApprovalProxy": "ELYSIUM_DEPLOYED_APPROVAL_PROXY",
+  "create2Factory": "ELYSIUM_VERIFIED_CREATE2_FACTORY",
+  "permit2": "ELYSIUM_VERIFIED_PERMIT2"
+}
