@@ -26,6 +26,9 @@ import {
 ///         balance at the start of the attack tx is not a vulnerability
 ///         under this model. See vigil PRECON-012 and the residual-funds
 ///         tests in test/RelayRouterResidualFundsTest.sol.
+///
+///         Calls with a caller chosen target and calldata may not target an
+///         ERC777 hook registry. See `_revertIfHookRegistry` in Multicall3.sol.
 contract RelayRouter_NonTstore is
     Multicall3,
     ReentrancyGuardMsgSender_NonTstore
@@ -225,6 +228,8 @@ contract RelayRouter_NonTstore is
             uint256 amount = amounts[i] == 0 ? balanceBefore : amounts[i];
 
             if (amount > 0) {
+                _revertIfHookRegistry(to);
+
                 // Approve the target for the call. Use safeApproveWithRetry to
                 // support non-standard ERC20s: tokens that do not return a bool
                 // on approve (e.g. USDT, which reverts the typed call with empty
@@ -301,6 +306,8 @@ contract RelayRouter_NonTstore is
         uint256 amountToTransfer = amount == 0 ? address(this).balance : amount;
 
         if (amountToTransfer > 0) {
+            _revertIfHookRegistry(to);
+
             (bool success, ) = to.call{value: amountToTransfer}(data);
             if (!success) {
                 revert CallFailed();
