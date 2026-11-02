@@ -6,6 +6,9 @@ import {console2} from "forge-std/console2.sol";
 
 import {RelayReceiver} from "../../src/receiver/RelayReceiver.sol";
 
+/// @dev Run with FOUNDRY_PROFILE=receiver. The receiver's CREATE2 address depends on its
+///      creation code, and the deployed receivers were compiled at 200 optimizer runs; the
+///      default profile compiles the router at 1,000,000 runs since version 3.2.
 contract RelayReceiverDeployer is Script {
     // Thrown when the predicted address doesn't match the deployed address
     error IncorrectContractAddress(address predicted, address actual);
