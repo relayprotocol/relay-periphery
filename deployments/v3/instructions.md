@@ -15,19 +15,11 @@ Router 3.2 changes the `SolverCallExecuted` event: it emits `keccak256(callData)
 `bytes32 dataHash` instead of the calldata, so the event's topic changes. The oracle's
 `verifySolverCalls` must accept that shape before any 3.2 router takes fills, or every
 fill on that chain fails attestation until it does. The oracle release that decodes both
-shapes has to be live first. The `RelayApprovalProxy` shipped with Router 3.2 carries no code
-change and stays at version 3.1; its version string is the EIP-712 domain version that
-multicall authorizations are signed against, so it only moves when the proxy itself changes.
-It is still redeployed at a new address, because the router address is one of its constructor
-arguments and part of its CREATE2 input.
-
-### Proxy residue sweep (DEC-2400)
-
-The `RelayApprovalProxy` on `main` makes `transferAndMulticall` sweep the transferred tokens
-and the native balance back to `refundTo` after the multicall, as the permit entrypoints
-already did, and makes `permit2TransferAndMulticall` sweep the permitted tokens even when the
-permit signature is empty. The deployed 3.2 proxies predate this change. It has not been
-deployed yet: fold it into the next core-contracts redeployment rather than shipping it alone.
+shapes has to be live first. `RelayApprovalProxy` has no code change and stays at version 3.1;
+its version string is the EIP-712 domain version that multicall authorizations are signed
+against, so it only moves when the proxy itself changes. It is still redeployed at a new
+address, because the router address is one of its constructor arguments and part of its
+CREATE2 input.
 
 3.2 is the first version compiled with `optimizer_runs = 1_000_000` (see `foundry.toml`); 3.0
 and 3.1 were compiled at the compiler default of 200. Compiler settings are part of the
