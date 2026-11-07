@@ -15,8 +15,8 @@ import {TestERC20} from "./mocks/TestERC20.sol";
 /// @notice Every proxy entrypoint returns what the multicall leaves of the
 ///         tokens it moved, plus the router's native balance, to `refundTo`.
 ///         The router's cleanup functions are permissionless, so anything the
-///         proxy left behind was claimable by the next caller. Before 3.2 the
-///         raw `transferAndMulticall` and the empty-signature Permit2 path
+///         proxy left behind was claimable by the next caller. Before DEC-2400
+///         the raw `transferAndMulticall` and the empty-signature Permit2 path
 ///         skipped this sweep.
 contract ApprovalProxyResidueCleanupTest is Test {
     bytes32 constant FUNDS_MOVEMENT_TOPIC =

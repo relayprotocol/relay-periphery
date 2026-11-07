@@ -26,7 +26,7 @@ contract RelayApprovalProxy is Ownable, EIP712 {
 
     /// @notice Semantic version of this contract. Contract names are
     ///         unversioned; this constant is the version marker.
-    string public constant VERSION = "3.2";
+    string public constant VERSION = "3.1";
 
     /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();

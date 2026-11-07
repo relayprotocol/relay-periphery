@@ -21,13 +21,12 @@ multicall authorizations are signed against, so it only moves when the proxy its
 It is still redeployed at a new address, because the router address is one of its constructor
 arguments and part of its CREATE2 input.
 
-### Proxy 3.2
+### Proxy residue sweep (DEC-2400)
 
-`RelayApprovalProxy` 3.2 (DEC-2400) makes `transferAndMulticall` sweep the transferred
-tokens and the native balance back to `refundTo` after the multicall, as the permit
-entrypoints already did, and makes `permit2TransferAndMulticall` sweep the permitted tokens
-even when the permit signature is empty. Its domain version moves to 3.2, so multicall
-authorizations must be signed against the new domain once it is routed. It has not been
+The `RelayApprovalProxy` on `main` makes `transferAndMulticall` sweep the transferred tokens
+and the native balance back to `refundTo` after the multicall, as the permit entrypoints
+already did, and makes `permit2TransferAndMulticall` sweep the permitted tokens even when the
+permit signature is empty. The deployed 3.2 proxies predate this change. It has not been
 deployed yet: fold it into the next core-contracts redeployment rather than shipping it alone.
 
 3.2 is the first version compiled with `optimizer_runs = 1_000_000` (see `foundry.toml`); 3.0
