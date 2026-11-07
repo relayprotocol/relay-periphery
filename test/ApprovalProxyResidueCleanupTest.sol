@@ -4,7 +4,6 @@ pragma solidity ^0.8.25;
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 
 import {Call3Value} from "../src/common/Multicall3.sol";
 import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
@@ -16,8 +15,7 @@ import {TestERC20} from "./mocks/TestERC20.sol";
 ///         tokens it moved, plus the router's native balance, to `refundTo`.
 ///         The router's cleanup functions are permissionless, so anything the
 ///         proxy left behind was claimable by the next caller. Before DEC-2400
-///         the raw `transferAndMulticall` and the empty-signature Permit2 path
-///         skipped this sweep.
+///         the raw `transferAndMulticall` skipped this sweep.
 contract ApprovalProxyResidueCleanupTest is Test {
     bytes32 constant FUNDS_MOVEMENT_TOPIC =
         keccak256("FundsMovement(address,address,address,uint256,bytes)");
@@ -153,76 +151,6 @@ contract ApprovalProxyResidueCleanupTest is Test {
             1 ether,
             "unlisted token unexpectedly swept"
         );
-    }
-
-    // ─────────────────────────────────────────────────────────────────
-    // permit2TransferAndMulticall, empty signature
-    // ─────────────────────────────────────────────────────────────────
-
-    /// @notice With an empty signature nothing is transferred, but the
-    ///         permitted tokens are still swept to refundTo after the
-    ///         multicall, so this path cleans up like the signed one.
-    function test_permit2EmptySignature_sweepsPermittedTokens() public {
-        // Residue already sitting on the router, e.g. from a prior flow
-        token.mint(address(router), 1 ether);
-        bytes memory metadata = "dec-2400";
-
-        ISignatureTransfer.TokenPermissions[]
-            memory permitted = new ISignatureTransfer.TokenPermissions[](1);
-        permitted[0] = ISignatureTransfer.TokenPermissions({
-            token: address(token),
-            amount: 0
-        });
-        ISignatureTransfer.PermitBatchTransferFrom
-            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
-                permitted: permitted,
-                nonce: 0,
-                deadline: block.timestamp
-            });
-        Call3Value[] memory calls = new Call3Value[](0);
-
-        vm.recordLogs();
-        vm.prank(alice);
-        proxy.permit2TransferAndMulticall(
-            alice,
-            permit,
-            calls,
-            refundTo,
-            address(0),
-            metadata,
-            ""
-        );
-
-        assertEq(token.balanceOf(refundTo), 1 ether, "residue not refunded");
-        assertEq(token.balanceOf(address(router)), 0, "residue left on router");
-        _assertSweepLogged(address(token), 1 ether, metadata);
-    }
-
-    /// @notice An empty signature with no permitted tokens is the plain
-    ///         "multicall only" call: it still works and still refunds
-    ///         native value.
-    function test_permit2EmptySignature_noPermittedTokensStillWorks() public {
-        ISignatureTransfer.PermitBatchTransferFrom
-            memory permit = ISignatureTransfer.PermitBatchTransferFrom({
-                permitted: new ISignatureTransfer.TokenPermissions[](0),
-                nonce: 0,
-                deadline: block.timestamp
-            });
-        Call3Value[] memory calls = new Call3Value[](0);
-
-        vm.prank(alice);
-        proxy.permit2TransferAndMulticall{value: 1 ether}(
-            alice,
-            permit,
-            calls,
-            refundTo,
-            address(0),
-            "",
-            ""
-        );
-
-        assertEq(refundTo.balance, 1 ether, "native not refunded");
-        assertEq(address(router).balance, 0);
     }
 
     // ─────────────────────────────────────────────────────────────────

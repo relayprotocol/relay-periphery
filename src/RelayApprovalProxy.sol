@@ -285,17 +285,14 @@ contract RelayApprovalProxy is Ownable, EIP712 {
     }
 
     /// @notice Use Permit2 to transfer tokens to RelayRouter and perform an arbitrary multicall.
-    ///         Pass in an empty permitSignature to only perform the multicall: nothing is transferred, but
-    ///         the tokens listed in `permit.permitted` are still swept to refundTo afterwards.
-    /// @dev    msg.value will persist across all calls in the multicall. Once the multicall has run, whatever
-    ///         balance of the permitted tokens and whatever native value is left on the router is sent to
-    ///         refundTo. Only the permitted tokens are swept; if the multicall leaves other ERC20s on the
-    ///         router, include a `cleanupErc20s` call for them. If the multicall includes ERC721/ERC1155
-    ///         mints or transfers, be sure to set nftRecipient to the expected recipient.
+    ///         Pass in an empty permitSignature to only perform the multicall.
+    /// @dev    msg.value will persist across all calls in the multicall. If leftover native tokens is expected
+    ///         as part of the multicall, be sure to set refundTo to the expected recipient. If the multicall
+    ///         includes ERC721/ERC1155 mints or transfers, be sure to set nftRecipient to the expected recipient.
     /// @param user The address of the user
     /// @param permit The permit details
     /// @param calls The calls to perform
-    /// @param refundTo The address to refund any leftover permitted tokens and native value to
+    /// @param refundTo The address to refund any leftover native tokens to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     /// @param permitSignature The signature for the permit
@@ -313,10 +310,7 @@ contract RelayApprovalProxy is Ownable, EIP712 {
             revert RefundToCannotBeZeroAddress();
         }
 
-        // If a permit signature is provided, use it to transfer tokens from
-        // user to router. Without one nothing is transferred, but the
-        // permitted tokens are still the ones the multicall is expected to
-        // consume, so they are the ones swept afterwards either way.
+        // If a permit signature is provided, use it to transfer tokens from user to router
         address[] memory tokens;
         if (permitSignature.length != 0) {
             tokens = _handleBatchPermit(
@@ -328,11 +322,6 @@ contract RelayApprovalProxy is Ownable, EIP712 {
                 calls,
                 permitSignature
             );
-        } else {
-            tokens = new address[](permit.permitted.length);
-            for (uint256 i = 0; i < permit.permitted.length; i++) {
-                tokens[i] = permit.permitted[i].token;
-            }
         }
 
         // Call multicall on the router
@@ -343,10 +332,9 @@ contract RelayApprovalProxy is Ownable, EIP712 {
             metadata
         );
 
-        // Return whatever the multicall left of the permitted tokens and of
-        // the native balance to refundTo. Residue left on the router is
-        // sweepable by anyone through its permissionless cleanup functions.
-        _cleanupErc20s(tokens, refundTo, metadata);
+        if (permitSignature.length != 0) {
+            _cleanupErc20s(tokens, refundTo, metadata);
+        }
         IRelayRouter(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
