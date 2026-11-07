@@ -75,7 +75,8 @@ contract ApprovalProxyResidueCleanupTest is Test {
     }
 
     /// @notice Native value the multicall does not spend goes back to
-    ///         refundTo as well, through the same post-multicall sweep.
+    ///         refundTo as well, through the router's own sweep at the end
+    ///         of `multicall`; the proxy adds nothing for native.
     function test_transferAndMulticall_sweepsNativeToRefundTo() public {
         Call3Value[] memory calls = new Call3Value[](0);
 

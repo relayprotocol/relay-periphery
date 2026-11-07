@@ -202,11 +202,11 @@ contract RelayApprovalProxy is Ownable, EIP712 {
             metadata
         );
 
-        // Return whatever the multicall left of `tokens` and of the native
-        // balance to refundTo. Residue left on the router is sweepable by
-        // anyone through its permissionless cleanup functions.
+        // Return whatever the multicall left of `tokens` to refundTo. The
+        // router already refunded the native balance at the end of
+        // `multicall`; ERC20s have no such automatic sweep, and residue left
+        // on the router is claimable by anyone through its cleanup functions.
         _cleanupErc20s(tokens, refundTo, metadata);
-        IRelayRouter(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
     /// @notice Use ERC2612 permit to transfer tokens to RelayRouter and execute multicall in a single tx
