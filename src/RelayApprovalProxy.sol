@@ -148,13 +148,17 @@ contract RelayApprovalProxy is Ownable, EIP712 {
     }
 
     /// @notice Transfer tokens to RelayRouter and perform multicall in a single tx
-    /// @dev    This contract must be approved to transfer msg.sender's tokens to the RelayRouter. If leftover native tokens
-    ///         is expected as part of the multicall, be sure to set refundTo to the expected recipient. If the multicall
-    ///         includes ERC721/ERC1155 mints or transfers, be sure to set nftRecipient to the expected recipient.
+    /// @dev    This contract must be approved to transfer msg.sender's tokens to the RelayRouter. Once the multicall
+    ///         has run, whatever balance of `tokens` and whatever native value is left on the router is sent to
+    ///         refundTo, exactly as the permit entrypoints do: the router's cleanup functions are permissionless, so
+    ///         any residue left there is claimable by the next caller. Only the tokens listed in `tokens` are swept;
+    ///         if the multicall leaves other ERC20s on the router (swap output, for instance), include a
+    ///         `cleanupErc20s` call for them. If the multicall includes ERC721/ERC1155 mints or transfers, be sure
+    ///         to set nftRecipient to the expected recipient.
     /// @param tokens An array of token addresses to transfer
     /// @param amounts An array of token amounts to transfer
     /// @param calls The calls to perform
-    /// @param refundTo The address to refund any leftover native tokens to
+    /// @param refundTo The address to refund any leftover `tokens` and native value to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     function transferAndMulticall(
@@ -197,15 +201,22 @@ contract RelayApprovalProxy is Ownable, EIP712 {
             nftRecipient,
             metadata
         );
+
+        // Return whatever the multicall left of `tokens` to refundTo. The
+        // router already refunded the native balance at the end of
+        // `multicall`; ERC20s have no such automatic sweep, and residue left
+        // on the router is claimable by anyone through its cleanup functions.
+        _cleanupErc20s(tokens, refundTo, metadata);
     }
 
     /// @notice Use ERC2612 permit to transfer tokens to RelayRouter and execute multicall in a single tx
-    /// @dev    Approved spender must be address(this) to transfer user's tokens to the RelayRouter. If leftover native tokens
-    ///         is expected as part of the multicall, be sure to set refundTo to the expected recipient. If the multicall
-    ///         includes ERC721/ERC1155 mints or transfers, be sure to set nftRecipient to the expected recipient.
+    /// @dev    Approved spender must be address(this) to transfer user's tokens to the RelayRouter. Once the multicall
+    ///         has run, whatever balance of the permitted tokens and whatever native value is left on the router is
+    ///         sent to refundTo. If the multicall includes ERC721/ERC1155 mints or transfers, be sure to set
+    ///         nftRecipient to the expected recipient.
     /// @param permits An array of permits
     /// @param calls The calls to perform
-    /// @param refundTo The address to refund any leftover native tokens to
+    /// @param refundTo The address to refund any leftover permitted tokens and native value to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     /// @return returnData The return data from the multicall
@@ -336,7 +347,7 @@ contract RelayApprovalProxy is Ownable, EIP712 {
     /// @param permits An array of permits
     /// @param tokens An array of tokens corresponding to the permits
     /// @param calls The calls to perform
-    /// @param refundTo The address to refund any leftover native tokens to
+    /// @param refundTo The address to refund any leftover `tokens` and native value to
     /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     /// @param multicallSignatures The EIP712 signatures over the MulticallAuthorization, corresponding to each permit
