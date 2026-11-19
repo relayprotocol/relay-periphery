@@ -10,11 +10,19 @@ optimizer = true
 # per router fill and 1.7k less per proxy deposit, for 1.6 KB (router) and 3 KB (proxy) more
 # code. Settle these before a version's first deployment and freeze them after: they are part
 # of the creationCode and therefore of the CREATE2 address on every chain. Versions 3.0 and 3.1
-# were compiled at the compiler default of 200 runs; verify those with `--optimizer-runs 200`.
-# RelayReceiver keeps 200 through the `receiver` profile so its address does not move.
+# were compiled at the compiler default of 200 runs; verify those from the commit that deployed
+# them. RelayReceiver keeps 200 through the `receiver` profile so its address does not move.
 optimizer_runs = 1_000_000
 bytecode_hash = "none"
 cbor_metadata = false
+
+# Router 4.0 and its proxy are also compiled with a Yul optimizer step sequence of their own.
+# A race costs 182 to 768 gas less with it than with the compiler's default sequence, for
+# 0.6 KB (router) and 0.2 KB (proxy) more code. It is part of the creationCode like the runs
+# above: settle it before 4.0's first deployment and freeze it after. Every profile inherits
+# it. RelayReceiver compiles to the same bytecode with it, so its address does not move.
+[profile.default.optimizer_details.yulDetails]
+optimizerSteps = "dhfoDgvulfnTUtnIf[xa[r]EscLMVcul [j]Trpeulxa[r]cLgvifMCTUca[r]LSsTFOtfDnca[r]IulcscCTUtgvifMx[scCTUt] TOntnfDIulgvifM]jmul[jul] VcTOcul jmul:fDnTOcmuO"
 
 [profile.london]
 solc_version = "0.8.28"

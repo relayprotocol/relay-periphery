@@ -9,28 +9,48 @@ Both scripts require the following environment variables:
 - `PERMIT2`: the address of the `PERMIT2` contract to use for `ApprovalProxy` - the default permit2 should be deployed at `0x000000000022d473030f116ddee9f6b43ac78ba3`, in case it's not available on a given chain we should deploy it there or otherwise use a different permit2
 - `ETHERSCAN_API_KEY`: the API key needed to verify the contracts on Etherscan-powered explorers
 
-### Before deploying 3.2
+### Before deploying 4.0
 
-Router 3.2 changes the `SolverCallExecuted` event: it emits `keccak256(callData)` as
-`bytes32 dataHash` instead of the calldata, so the event's topic changes. The oracle's
-`verifySolverCalls` must accept that shape before any 3.2 router takes fills, or every
-fill on that chain fails attestation until it does. The oracle release that decodes both
-shapes has to be live first. `RelayApprovalProxy` has no code change and stays at version 3.1;
-its version string is the EIP-712 domain version that multicall authorizations are signed
-against, so it only moves when the proxy itself changes. It is still redeployed at a new
-address, because the router address is one of its constructor arguments and part of its
-CREATE2 input.
+Router 4.0 runs a route race as a command of `multicall`: `raceSingle`, `race` and
+`raceWithBackups`, declared in `src/interfaces/IRouteRace.sol`. Outside a race it answers as
+3.2 does, with one difference: a nested multicall may name an NFT recipient of its own, which
+holds for its own calls.
 
-3.2 is the first version compiled with `optimizer_runs = 1_000_000` (see `foundry.toml`); 3.0
-and 3.1 were compiled at the compiler default of 200. Compiler settings are part of the
-creation code and therefore of every CREATE2 address, so:
+The routers are written and tested in the route-racer repository, in `src/v4`. The files
+`src/RelayRouter.sol`, `src/RelayRouter_NonTstore.sol`, `src/RelayRouterBase.sol`,
+`src/RouteRaceEngine.sol` and `src/interfaces/IRouteRace.sol` follow that source. Do not
+change them here: change them there and copy again with its
+`bash-utils/copy-router-to-periphery.sh`. Deploy only from a commit on which that script
+passes with `--check`. It compares the five files, and the bytecode of both routers and of
+the proxy with the bytecode that the suites there test.
 
-- Deploy 3.2 from the repo as is. The solver registry expects the addresses that this build
+What has to hold before any 4.0 router takes fills:
+
+- The oracle trusts `SolverCallExecuted` and `SolverNativeTransfer` only from the fill
+  contracts on each chain's allowlist. Add the new router addresses to it first, or fills
+  through them fail attestation. The events have the 3.2 shape, so the oracle needs no new
+  decoder.
+- A race command emits no `SolverCallExecuted`. An order must not commit a call to the
+  router's race functions, or its fill fails attestation.
+- A race that pays native output straight to its recipient emits no `SolverNativeTransfer`.
+  When a fill's output is native, name the router as the race's recipient and pay the user
+  with `cleanupNative`, which emits it.
+
+`RelayApprovalProxy` is redeployed at a new address, because the router address is one of its
+constructor arguments and part of its CREATE2 input. Its code is new as well: this is the
+first deployment of the residue sweep of DEC-2400. Its version stays 3.1, the EIP-712 domain
+version that multicall authorizations are signed against.
+
+4.0 is the first version compiled with a Yul optimizer step sequence of its own, next to the
+`optimizer_runs = 1_000_000` it shares with 3.2 (see `foundry.toml`). Compiler settings are
+part of the creation code and therefore of every CREATE2 address, so:
+
+- Deploy 4.0 from the repo as is. The solver registry expects the addresses that this build
   produces; a different setting lands somewhere else and never verifies.
-- Record `"optimizerRuns": 1000000` on every 3.2 entry in `addresses.json`. Entries without
-  the field were compiled at 200.
-- To re verify a 3.0 or 3.1 contract on an explorer from this repo, pass
-  `--optimizer-runs 200` to `forge verify-contract` (or check out the commit that deployed it).
+- Record `"optimizerRuns": 1000000` on every 4.0 entry in `addresses.json`, as for 3.2.
+  Entries without the field were compiled at 200.
+- To re verify a contract of an earlier version on an explorer, check out the commit that
+  deployed it: neither its source nor its settings are those of this commit.
 - Deploy `RelayReceiver` with `FOUNDRY_PROFILE=receiver` (200 runs) so new chains get the same
   receiver address as the existing ones. See `script/receiver/ReceiverDeployer.s.sol`.
 

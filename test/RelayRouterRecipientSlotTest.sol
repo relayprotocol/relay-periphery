@@ -38,8 +38,6 @@ interface IRecipientRouter {
 ///         #62 fixed the reentrancy guard slot but not the recipient slot, and
 ///         made the nested path cleanly reachable in the process.
 contract RelayRouterRecipientSlotTest is Test {
-    error RecipientAlreadySet(address current, address requested);
-
     TestERC721 nft;
     address alice = address(0xA11CE);
     address bob = address(0xB0B);
@@ -88,17 +86,18 @@ contract RelayRouterRecipientSlotTest is Test {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // Conflicting and matching nested recipients
+    // Differing and matching nested recipients
     // ─────────────────────────────────────────────────────────────────
 
-    /// @notice A nested frame asking for a different recipient is a genuine
-    ///         conflict and must revert rather than silently reroute.
-    function test_nestedConflictingRecipientReverts_tstore() public {
-        _nestedConflictReverts(address(new RelayRouter()));
+    /// @notice A nested frame asking for a different recipient gets it for
+    ///         its own calls only, and the enclosing frame's recipient is
+    ///         back once it ends.
+    function test_nestedDifferingRecipientIsScopedToItsFrame_tstore() public {
+        _nestedDifferingRecipientScoped(address(new RelayRouter()));
     }
 
-    function test_nestedConflictingRecipientReverts_nonTstore() public {
-        _nestedConflictReverts(address(new RelayRouter_NonTstore()));
+    function test_nestedDifferingRecipientIsScopedToItsFrame_nonTstore() public {
+        _nestedDifferingRecipientScoped(address(new RelayRouter_NonTstore()));
     }
 
     /// @notice A nested frame asking for the same recipient is a no-op.
@@ -187,15 +186,28 @@ contract RelayRouterRecipientSlotTest is Test {
         assertEq(nft.balanceOf(router), 0, "NFT left on the router");
     }
 
-    function _nestedConflictReverts(address router) internal {
-        Call3Value[] memory calls = new Call3Value[](1);
-        calls[0] = _nestedCall(router, bob);
+    function _nestedDifferingRecipientScoped(address router) internal {
+        Call3Value[] memory nested = new Call3Value[](1);
+        nested[0] = _mintCall(1, false);
+
+        Call3Value[] memory calls = new Call3Value[](2);
+        calls[0] = Call3Value({
+            target: router,
+            allowFailure: false,
+            value: 0,
+            callData: abi.encodeCall(
+                IRecipientRouter.multicall,
+                (nested, alice, bob, "")
+            )
+        });
+        calls[1] = _mintCall(2, false);
 
         vm.prank(alice);
-        vm.expectRevert(
-            abi.encodeWithSelector(RecipientAlreadySet.selector, alice, bob)
-        );
         IRecipientRouter(router).multicall(calls, alice, alice, "");
+
+        assertEq(nft.ownerOf(1), bob, "nested recipient not used in its frame");
+        assertEq(nft.ownerOf(2), alice, "recipient lost after nested call");
+        assertEq(nft.balanceOf(router), 0, "NFT left on the router");
     }
 
     function _nestedMatchingAllowed(address router) internal {
