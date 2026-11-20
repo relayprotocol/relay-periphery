@@ -30,7 +30,8 @@ What has to hold before any 4.0 router takes fills:
 
 `RelayApprovalProxy` is redeployed at a new address, because the router address is one of its
 constructor arguments and part of its CREATE2 input. Its code is new as well: this is the
-first deployment of the residue sweep of DEC-2400. Its version stays 3.1, the EIP-712 domain
+first deployment of the residue sweep of DEC-2400, of `permit2TransferAndMulticallWithTail` and of
+the reentrancy guard on every entry point. Its version is 4.0, which is also the EIP-712 domain
 version that multicall authorizations are signed against.
 
 4.0 is the first version compiled with a Yul optimizer step sequence of its own, next to the

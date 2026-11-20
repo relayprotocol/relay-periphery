@@ -14,6 +14,7 @@ import {EIP712} from "solady/src/utils/EIP712.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {TrustlessPermit} from "trustlessPermit/TrustlessPermit.sol";
 
+import {IRelayDepository} from "./interfaces/IRelayDepository.sol";
 import {IRelayRouter} from "./interfaces/IRelayRouter.sol";
 import {IERC3009} from "./common/IERC3009.sol";
 import {Call3Value, Result} from "./common/Multicall3.sol";
@@ -26,7 +27,7 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
 
     /// @notice Semantic version of this contract. Contract names are
     ///         unversioned; this constant is the version marker.
-    string public constant VERSION = "3.1";
+    string public constant VERSION = "4.0";
 
     /// @notice Revert if the array lengths do not match
     error ArrayLengthsMismatch();
@@ -51,6 +52,18 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
 
     /// @notice Revert if a function of this contract is called while another one runs
     error Reentrancy();
+
+    /// @notice Revert if `refundTo` or a field of the tail is invalid
+    error InvalidTail();
+
+    /// @notice The last call of a limit-order fill, as the user signs it: at least `minAmount` of `token`
+    ///         (zero for native) goes to `recipient`, deposited for the user under `orderId` unless it is zero
+    struct SweepWithMinimum {
+        address token;
+        uint256 minAmount;
+        address recipient;
+        bytes32 orderId;
+    }
 
     /// @notice Emitted on any explicit movement of funds
     event FundsMovement(
@@ -85,6 +98,17 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
         keccak256(
             "RelayerWitness(address relayer,uint256 msgValue,address refundTo,address nftRecipient,bytes metadata,Call3Value[] call3Values)Call3Value(address target,bool allowFailure,uint256 value,bytes callData)"
         );
+
+    bytes32 public constant _SWEEP_WITH_MINIMUM_TYPEHASH =
+        keccak256(
+            "SweepWithMinimum(address token,uint256 minAmount,address recipient,bytes32 orderId)"
+        );
+    bytes32 public constant _TAIL_WITNESS_TYPEHASH =
+        keccak256(
+            "TailWitness(address relayer,address refundTo,SweepWithMinimum tail)SweepWithMinimum(address token,uint256 minAmount,address recipient,bytes32 orderId)"
+        );
+    string public constant _TAIL_WITNESS_TYPE_STRING =
+        "TailWitness witness)SweepWithMinimum(address token,uint256 minAmount,address recipient,bytes32 orderId)TailWitness(address relayer,address refundTo,SweepWithMinimum tail)TokenPermissions(address token,uint256 amount)";
 
     /// @notice Holds `_ENTERED` while a guarded function runs. The storage version starts at `_NOT_ENTERED`,
     ///         so that a call changes the slot between two non-zero values.
@@ -341,11 +365,15 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
         if (permitSignature.length != 0) {
             tokens = _handleBatchPermit(
                 user,
-                refundTo,
-                nftRecipient,
                 metadata,
                 permit,
-                calls,
+                _getRelayerWitnessHash(
+                    refundTo,
+                    nftRecipient,
+                    metadata,
+                    calls
+                ),
+                _RELAYER_WITNESS_TYPE_STRING,
                 permitSignature
             );
         }
@@ -361,6 +389,69 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
         if (permitSignature.length != 0) {
             _cleanupErc20s(tokens, refundTo, metadata);
         }
+        IRelayRouter(ROUTER).cleanupNative(0, refundTo, metadata);
+    }
+
+    /// @notice Use Permit2 to transfer tokens to RelayRouter, run the relayer's calls, and then run the tail that the
+    ///         user signed as the last call. The tail cannot fail: it moves the router's full balance of `tail.token`
+    ///         to `tail.recipient`, deposited for `user` under `tail.orderId` unless that is zero, and it reverts the
+    ///         whole call below `tail.minAmount`. Leftover permitted tokens and native value go to refundTo.
+    /// @dev    The witness binds msg.sender as the relayer, `refundTo` and the tail, but not the relayer's calls.
+    /// @param user The address of the user
+    /// @param permit The permit details
+    /// @param solverCalls The calls to perform before the tail
+    /// @param tail The last call, as the user signed it
+    /// @param refundTo The address to refund any leftover permitted tokens and native value to
+    /// @param metadata Additional data to associate the call to
+    /// @param permitSignature The signature for the permit
+    /// @return returnData The return data from the multicall, with the tail last
+    function permit2TransferAndMulticallWithTail(
+        address user,
+        ISignatureTransfer.PermitBatchTransferFrom memory permit,
+        Call3Value[] calldata solverCalls,
+        SweepWithMinimum calldata tail,
+        address refundTo,
+        bytes calldata metadata,
+        bytes memory permitSignature
+    ) external nonReentrant returns (Result[] memory returnData) {
+        if (
+            refundTo == address(0) ||
+            tail.minAmount == 0 ||
+            tail.recipient == address(0) ||
+            tail.recipient == address(this) ||
+            tail.recipient == ROUTER
+        ) {
+            revert InvalidTail();
+        }
+
+        address[] memory tokens = _handleBatchPermit(
+            user,
+            metadata,
+            permit,
+            _getTailWitnessHash(refundTo, tail),
+            _TAIL_WITNESS_TYPE_STRING,
+            permitSignature
+        );
+
+        Call3Value[] memory calls = new Call3Value[](solverCalls.length + 1);
+        for (uint256 i = 0; i < solverCalls.length; i++) {
+            calls[i] = solverCalls[i];
+        }
+        calls[solverCalls.length] = Call3Value({
+            target: ROUTER,
+            allowFailure: false,
+            value: 0,
+            callData: _getTailCallData(user, tail)
+        });
+
+        returnData = IRelayRouter(ROUTER).multicall(
+            calls,
+            refundTo,
+            address(0),
+            metadata
+        );
+
+        _cleanupErc20s(tokens, refundTo, metadata);
         IRelayRouter(ROUTER).cleanupNative(0, refundTo, metadata);
     }
 
@@ -615,30 +706,88 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
             );
     }
 
+    /// @notice Internal function to get the hash of a tail witness
+    /// @param refundTo The address to refund any leftover tokens to
+    /// @param tail The last call of the multicall
+    function _getTailWitnessHash(
+        address refundTo,
+        SweepWithMinimum calldata tail
+    ) internal view returns (bytes32) {
+        return
+            keccak256(
+                abi.encode(
+                    _TAIL_WITNESS_TYPEHASH,
+                    msg.sender,
+                    refundTo,
+                    keccak256(
+                        abi.encode(
+                            _SWEEP_WITH_MINIMUM_TYPEHASH,
+                            tail.token,
+                            tail.minAmount,
+                            tail.recipient,
+                            tail.orderId
+                        )
+                    )
+                )
+            );
+    }
+
+    /// @notice Internal function to build the router call of a tail
+    /// @param user The depositor of a deposit
+    /// @param tail The last call of the multicall
+    function _getTailCallData(
+        address user,
+        SweepWithMinimum calldata tail
+    ) internal pure returns (bytes memory) {
+        bool deposit = tail.orderId != bytes32(0);
+        if (tail.token == address(0)) {
+            return
+                abi.encodeCall(
+                    IRelayRouter.sweepNativeWithMinimum,
+                    (
+                        tail.minAmount,
+                        tail.recipient,
+                        deposit
+                            ? abi.encodeCall(
+                                IRelayDepository.depositNative,
+                                (user, tail.orderId)
+                            )
+                            : bytes("")
+                    )
+                );
+        }
+        return
+            abi.encodeCall(
+                IRelayRouter.sweepWithMinimum,
+                (
+                    tail.token,
+                    tail.minAmount,
+                    tail.recipient,
+                    deposit
+                        ? abi.encodeCall(
+                            IRelayDepository.depositErc20,
+                            (user, tail.token, tail.orderId)
+                        )
+                        : bytes("")
+                )
+            );
+    }
+
     /// @notice Internal function to handle a permit batch transfer
     /// @param user The address of the user
-    /// @param refundTo The address to refund any leftover native tokens to
-    /// @param nftRecipient The address to set as recipient of ERC721/ERC1155 mints
     /// @param metadata Additional data to associate the call to
     /// @param permit The permit details
-    /// @param calls The calls to perform
+    /// @param witness The hash of the witness the user signed
+    /// @param witnessTypeString The Permit2 witness type string of `witness`
     /// @param permitSignature The signature for the permit
     function _handleBatchPermit(
         address user,
-        address refundTo,
-        address nftRecipient,
         bytes calldata metadata,
         ISignatureTransfer.PermitBatchTransferFrom memory permit,
-        Call3Value[] calldata calls,
+        bytes32 witness,
+        string memory witnessTypeString,
         bytes memory permitSignature
     ) internal returns (address[] memory tokens) {
-        bytes32 witness = _getRelayerWitnessHash(
-            refundTo,
-            nftRecipient,
-            metadata,
-            calls
-        );
-
         // Create the SignatureTransferDetails array
         ISignatureTransfer.SignatureTransferDetails[]
             memory signatureTransferDetails = new ISignatureTransfer.SignatureTransferDetails[](
@@ -673,7 +822,7 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
             // When using a permit signature, cannot deposit on behalf of someone else other than `user`
             user,
             witness,
-            _RELAYER_WITNESS_TYPE_STRING,
+            witnessTypeString,
             permitSignature
         );
     }
