@@ -23,4 +23,17 @@ interface IRelayRouter {
         address recipient,
         bytes calldata metadata
     ) external;
+
+    function sweepWithMinimum(
+        address token,
+        uint256 minAmount,
+        address to,
+        bytes calldata data
+    ) external;
+
+    function sweepNativeWithMinimum(
+        uint256 minAmount,
+        address to,
+        bytes calldata data
+    ) external;
 }
