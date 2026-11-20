@@ -39,7 +39,7 @@ address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 //
 // Gas. Every step gets the whole handler budget, about 1e9, and every route a gas limit of at most 1e6, so a route
 // always gets its full limit and no outcome depends on how much gas the top-level call had. Trial gas is in: it
-// breaks ties on net between mains, and a quarter of the races make such a tie, with routes that burn different
+// breaks ties on net between mains, and a quarter of the races plan such a tie, with routes that burn different
 // amounts. Inside a race the only router state either variant reads is the context word, already warm, so a run
 // of a route costs the same on both. The race events carry the gas of each run, so S3 compares it.
 
@@ -248,6 +248,14 @@ struct Outcome {
 
 struct Rng {
     uint256 s;
+}
+
+/// @dev The data of a RouteTrialSucceeded event
+struct Trial {
+    uint256 index;
+    uint256 out;
+    uint256 fee;
+    uint256 gasUsed;
 }
 
 contract ParityHandler is Test {
@@ -742,8 +750,9 @@ contract ParityHandler is Test {
             if (r.tokenIn == T_NATIVE && v == 0) q.value = 1;
             q.fail = _r(g, 6) == 0;
         }
-        // In a quarter of the races the second route copies the first except for its burn, so that if both lead,
-        // their trial gas decides between them
+        // In a quarter of the races the second route copies the first except for its burn, so that the two tie on net
+        // if both run. Their trial gas then decides which of them leads, unless the second is the last main: the last
+        // main takes a tie without a trial
         if (r.n > 1 && _r(g, 4) == 0) {
             (RoutePlan memory r0, RoutePlan memory r1) = (r.routes[0], r.routes[1]);
             (r1.out, r1.fee, r1.gasLimit, r1.spender, r1.spend, r1.value) =
@@ -1089,9 +1098,9 @@ contract ParityHandler is Test {
             if (p.kind != VIA_PROXY && c.race.tokenIn != T_NATIVE && c.race.amountIn != 0) {
                 ++reach[string.concat("carry: a race spent input that an earlier call left, ", v)];
             }
-            if (c.kind != C_RACE_SINGLE && _tie(c.race)) {
-                ++reach[string.concat("a race with a tie on net between two mains, ", v)];
-            }
+        }
+        if (o.ok && _tie(o.logs, address(w[wi].router))) {
+            ++reach[string.concat("a race with a tie on net between two mains, ", v)];
         }
         if (o.ok && p.kind >= CLEANUP_ERC20S && p.kind <= CLEANUP_NATIVE_VIA_CALL && o.fundsAfter < o.fundsBefore) {
             ++reach[string.concat("carry: a cleanup moved funds that an earlier call left, ", v)];
@@ -1102,18 +1111,28 @@ contract ParityHandler is Test {
         return kind == MULTICALL || kind == MULTICALL_NFT || kind == VIA_PROXY;
     }
 
-    /// @dev Whether two mains that run, at or above the minimum, have the same output and fee and burn different
-    /// amounts, so that their trial gas decides between them if they lead
-    function _tie(RacePlan memory r) internal pure returns (bool) {
-        uint256 mains = r.mainCount == 0 || r.mainCount > r.n ? 0 : r.mainCount;
-        for (uint256 i; i < mains; ++i) {
-            RoutePlan memory a = r.routes[i];
-            if (a.fail || a.out < r.minOut || a.gasLimit != 1_000_000) continue;
-            for (uint256 j = i + 1; j < mains; ++j) {
-                RoutePlan memory b = r.routes[j];
-                if (!b.fail && b.out == a.out && b.fee == a.fee && b.gasLimit == a.gasLimit && b.burn != a.burn) {
-                    return true;
+    /// @dev Whether a race had a tie on net between two mains that ran, read from the events that `router` emitted
+    /// in a call that succeeded: a main won, and one more main gave in its trial the output of the winner at the
+    /// fee of the winner. A route that fails emits no RouteTrialSucceeded, so it is not part of a tie. The tie
+    /// counts whether trial gas decided it or the last main took it without a trial. Only a race with EMIT_EVENTS
+    /// emits these events, and only a call that is alone in its transaction has its own `logs`
+    function _tie(Vm.Log[] memory logs, address router) internal pure returns (bool) {
+        Trial[] memory trials = new Trial[](logs.length);
+        uint256 n;
+        for (uint256 i; i < logs.length; ++i) {
+            Vm.Log memory entry = logs[i];
+            if (entry.emitter != router) continue;
+            bytes32 topic0 = entry.topics[0];
+            if (topic0 == RouteRaceEngine.RouteTrialSucceeded.selector) {
+                trials[n++] = abi.decode(entry.data, (Trial));
+            } else if (topic0 == RouteRaceEngine.RouteRaceWon.selector) {
+                uint256 winner = uint256(entry.topics[1]);
+                (uint256 out,, uint256 mainCount, uint256 fee,) =
+                    abi.decode(entry.data, (uint256, uint256, uint256, uint256, uint256));
+                for (uint256 k; winner < mainCount && k < n; ++k) {
+                    if (trials[k].index != winner && trials[k].out == out && trials[k].fee == fee) return true;
                 }
+                n = 0;
             }
         }
         return false;
@@ -1179,7 +1198,9 @@ contract RelayRouterParityTest is Test {
         }
     }
 
-    uint256 internal constant REACH_STEPS = 220;
+    // A tie on net between two mains that ran, in a race with EMIT_EVENTS, comes about once in 500 steps. The first
+    // one of this sequence is in step 229
+    uint256 internal constant REACH_STEPS = 240;
 
     function _reached(string memory key) internal {
         uint256 count = handler.reach(key);
