@@ -2,6 +2,7 @@
 pragma solidity ^0.8.25;
 
 import {Test} from "forge-std/Test.sol";
+import {Vm, VmSafe} from "forge-std/Vm.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {RelayApprovalProxyBase} from "../../src/RelayApprovalProxyBase.sol";
 import {Call3Value} from "../../src/common/Multicall3.sol";
@@ -179,6 +180,20 @@ abstract contract TailTyped is Test {
             "}}"
         );
         return IVmTypedData(address(vm)).eip712HashTypedData(json);
+    }
+
+    /// @notice Whether a call recorded in `acc` reached `account`. The state diff keeps the calls of frames that
+    ///         reverted, so this sees a call that a later revert undid
+    function _called(Vm.AccountAccess[] memory acc, address account) internal pure returns (bool) {
+        for (uint256 i; i < acc.length; ++i) {
+            if (acc[i].account != account) continue;
+            VmSafe.AccountAccessKind kind = acc[i].kind;
+            if (
+                kind == VmSafe.AccountAccessKind.Call || kind == VmSafe.AccountAccessKind.StaticCall
+                    || kind == VmSafe.AccountAccessKind.DelegateCall || kind == VmSafe.AccountAccessKind.CallCode
+            ) return true;
+        }
+        return false;
     }
 
     function _signDigest(uint256 key, bytes32 digest) internal pure returns (bytes memory) {

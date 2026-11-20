@@ -16,7 +16,8 @@ import {TailHandler, Action} from "./LimitOrderTailHandler.sol";
 //
 // The handler models the tail's rules on its fields: a tail permit holds exactly one token (invariant_oneTokenRule),
 // and a tail with an orderId deposits only into DEPOSITORY or a depository the proxy's owner allowed (#83,
-// invariant_depositoryRule). Any other tail reverts with InvalidTail and is checked under T1.3.
+// invariant_depositoryRule). Any other tail reverts with InvalidTail and is checked under T1.3. The permitted token
+// the venue does not take is refunded to refundTo (invariant_refundOfTheLeftoverInput).
 //
 // Every invariant failure on the current contracts has a reproduction with fixed inputs in
 // LimitOrderTailReproTest.sol, and the behaviour T2 leaves to the solver (fee-on-transfer and rounding tokens) is
@@ -66,16 +67,22 @@ abstract contract TailInvariants is Test {
     }
 
     /// @dev #83: a tail with an orderId to a recipient that is not a known depository reverts with InvalidTail()
-    /// before any call reaches Permit2 or a solver call runs, no tail that both rules allow reverts with it, and
-    /// nobody but the owner allows a depository
+    /// before any call reaches Permit2 or the router, no tail that both rules allow reverts with it, and nobody but
+    /// the owner allows a depository
     function invariant_depositoryRule() public view {
         assertEq(handler.violations("depository rule"), 0, handler.firstViolation("depository rule"));
     }
 
-    /// @dev A tail whose permit holds no token or two reverts with InvalidTail() before any call reaches Permit2 or a
-    /// solver call runs
+    /// @dev A tail whose permit holds no token or two reverts with InvalidTail() before any call reaches Permit2 or
+    /// the router
     function invariant_oneTokenRule() public view {
         assertEq(handler.violations("one-token rule"), 0, handler.firstViolation("one-token rule"));
+    }
+
+    /// @dev After a successful tail fill with refundTo the user or a third party, refundTo gets the permitted token
+    /// the venue did not take, and the router keeps none of it
+    function invariant_refundOfTheLeftoverInput() public view {
+        assertEq(handler.violations("refund"), 0, handler.firstViolation("refund"));
     }
 
     /// @dev The handler's own measurements agree with each other: the probe ran once, the tail's frame and logs
@@ -87,7 +94,7 @@ abstract contract TailInvariants is Test {
     /// @dev Logs at the end of each run how many checks of each kind the run made, so a run that never reached a
     /// successful fill shows as such
     function afterInvariant() public {
-        string[9] memory keys = [
+        string[10] memory keys = [
             "T1.1 a user's balance decreased",
             "T1.2 checked a successful fill",
             "T1.3 checked a call that reverted",
@@ -96,7 +103,8 @@ abstract contract TailInvariants is Test {
             "one-token rule: refused with InvalidTail, 2 permitted tokens",
             "T2 checked a successful tail fill",
             "T2.2 checked a fill with an orderId",
-            "T2.3 checked a fill without an orderId"
+            "T2.3 checked a fill without an orderId",
+            "refund checked a successful tail fill"
         ];
         emit log_named_uint("handler calls in this run", handler.calls());
         for (uint256 i; i < keys.length; ++i) {
@@ -117,8 +125,19 @@ abstract contract TailInvariants is Test {
     }
 
     function _logParts() internal {
-        string[10] memory parts =
-            ["T1.1", "T1.2", "T1.3", "T2.1", "T2.2", "T2.3", "T2.4", "depository rule", "one-token rule", "harness"];
+        string[11] memory parts = [
+            "T1.1",
+            "T1.2",
+            "T1.3",
+            "T2.1",
+            "T2.2",
+            "T2.3",
+            "T2.4",
+            "depository rule",
+            "one-token rule",
+            "refund",
+            "harness"
+        ];
         for (uint256 p; p < parts.length; ++p) {
             string[] memory list = handler.classesOf(parts[p]);
             emit log_named_uint(string.concat(parts[p], " violations"), handler.violations(parts[p]));
@@ -163,6 +182,9 @@ contract LimitOrderTailInvariantTest is TailInvariants {
     uint8 internal constant RF_THIRD = 4;
     uint8 internal constant RF_PROXY = 6;
     uint8 internal constant RF_ROUTER = 7;
+    // attempts: only the fill with a fresh permit; extras: the malicious relayer's callback
+    uint8 internal constant FRESH_FILL = 64;
+    uint8 internal constant EVIL_CALLBACK = 128;
 
     function setUp() public {
         new TailEtcher().etch();
@@ -281,8 +303,10 @@ contract LimitOrderTailInvariantTest is TailInvariants {
             _act(a);
         }
         // T2: the hook token as the tail token and as the permitted token, the recipient that calls out with and
-        // without an orderId, the venue's callback: with every attempt but the depository log, and with all of them
-        uint8[2] memory attemptSets = [47, 63];
+        // without an orderId, the venue's callback: with every attempt but the depository log and the fresh fill,
+        // with all but the fresh fill, and with only the fresh fill. With the sweeps among the attempts, the hook
+        // that runs while Permit2 moves the permitted token can take it before the venue does, and that fill reverts
+        uint8[3] memory attemptSets = [47, 63, FRESH_FILL];
         for (uint256 i; i < attemptSets.length; ++i) {
             Action memory a = _base();
             a.tokenOut = OUT_HOOK;
@@ -304,7 +328,16 @@ contract LimitOrderTailInvariantTest is TailInvariants {
             a.swap = 3;
             _act(a);
         }
-        // T1.2: every refundTo, with input left over
+        // the malicious relayer's callback submits a fill with a fresh permit
+        {
+            Action memory a = _base();
+            a.tokenOut = OUT_USDT;
+            a.extras = EVIL_CALLBACK;
+            a.attempts = FRESH_FILL;
+            a.minMode = 2;
+            _act(a);
+        }
+        // T1.2 and refunds: every refundTo, with input left over
         uint8[4] memory refunds = [0, RF_THIRD, RF_PROXY, RF_ROUTER];
         for (uint256 i; i < refunds.length; ++i) {
             Action memory a = _base();
@@ -487,6 +520,14 @@ contract LimitOrderTailInvariantTest is TailInvariants {
         for (uint256 i; i < refunds.length; ++i) {
             _reached(string.concat("T2 success, refundTo ", refunds[i]));
         }
+        _reached("refund checked, refundTo the EOA user");
+        _reached("refund checked, refundTo the third party");
+        _reached("refund checked, input left over");
+        string[4] memory callbacks =
+            ["the hook target", "the venue", "the recipient that calls out", "the malicious relayer"];
+        for (uint256 i; i < callbacks.length; ++i) {
+            _reached(string.concat(callbacks[i], " submitted a fill with a fresh permit during a fill, reverted"));
+        }
 
         string[10] memory attacks = [
             "Permit2 permitWitnessTransferFrom with the user's signature",
@@ -566,6 +607,16 @@ contract LimitOrderTailForkInvariantTest is TailInvariants {
         takesLess.swap = 2;
         takesLess.amount = 4e17;
         _act(takesLess);
+        takesLess.refundTo = 4;
+        _act(takesLess);
+        // native to the recipient that calls out, which submits a fill with a fresh permit when it gets the value
+        Action memory fresh = _base();
+        fresh.tokenOut = 2;
+        fresh.recipient = 2;
+        fresh.orderId = 0;
+        fresh.attempts = 64;
+        fresh.amount = 4e17;
+        _act(fresh);
         // #83: the allowed depository takes a deposit, an EOA with an orderId is refused
         Action memory allowed = _base();
         allowed.recipient = 6;
@@ -600,6 +651,10 @@ contract LimitOrderTailForkInvariantTest is TailInvariants {
         _reached("refused with InvalidTail, recipient the EOA recipient with an orderId");
         _reached("one-token rule: refused with InvalidTail, 0 permitted tokens");
         _reached("one-token rule: refused with InvalidTail, 2 permitted tokens");
+        _reached("refund checked, refundTo the EOA user");
+        _reached("refund checked, refundTo the third party");
+        _reached("refund checked, input left over");
+        _reached("the recipient that calls out submitted a fill with a fresh permit during a fill, reverted");
         _reached("T1.3 checked a call that reverted");
     }
 }

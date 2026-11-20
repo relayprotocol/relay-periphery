@@ -26,9 +26,12 @@ import {
     TailEvilRelayer,
     TailProbe,
     TailTransientReader,
+    STANDARD,
     FEE_ON_TRANSFER,
     ROUNDS_DOWN,
-    HOOK
+    HOOK,
+    USDT_APPROVE,
+    NO_ZERO_APPROVE
 } from "./LimitOrderTailActors.sol";
 
 // T1. Nothing of a user moves without that user's signature. A fill is all or nothing.
@@ -70,8 +73,21 @@ import {
 // - The depository rule (#83, "depository rule"): a tail with an orderId whose recipient is neither DEPOSITORY nor
 //   allowed by the spender proxy's owner (isDepository) reverts with InvalidTail(). The owner (the handler) allows
 //   one more contract with the depository's code, `depository2`, and nothing else.
-// - A tail that either rule refuses reverts before any call reaches Permit2 and before any solver call runs, and
-//   T1.3 is checked for it like for any other revert. No tail that both rules allow reverts with InvalidTail().
+// - A tail that either rule refuses reverts before any call reaches Permit2 or the router, so before any solver
+//   call runs, and T1.3 is checked for it like for any other revert. No tail that both rules allow reverts with
+//   InvalidTail(). The calls are read from the state diff, which keeps the calls of frames that reverted: a counter
+//   that a solver call raises would be undone by the revert itself.
+// - Refunds ("refund"): after a successful tail fill whose refundTo is the user or the third party, refundTo gets
+//   the router's balance of the permitted token after the venue, as the token delivers it, and the router keeps
+//   none of it. That balance is what the router held before the fill, plus the permitted amount as the router
+//   received it, minus what the venue took. No extra of the relayer sends or takes the permitted token. A tail of
+//   the permitted token itself takes it all, so those fills are not checked, and neither is the hook token as the
+//   permitted token when its hook tries the router's sweeps or cleanups: while Permit2 moves it to the router,
+//   before the proxy calls the router, those calls can take it, as a token that runs code of its choosing can.
+// - Fills from callbacks (A_FRESH_FILL): during a fill, the hook target, the venue, the recipient that calls out
+//   and the malicious relayer each submit a tail fill of 1 unit of another token that the user signed for it as the
+//   relayer, with an unused nonce. Only the proxy's guard stops it; were it to succeed, the outer fill would move a
+//   second amount of the user's and set a second nonce bit, which T1.2 reports.
 // - A "depository log" in T2 is a deposit event from Relay's depository, from the allowed depository or from
 //   tail.recipient.
 // - T2's token set (tokensOut) leaves out the fee-on-transfer and the rounding tokens: the solver signs tails only in
@@ -129,6 +145,7 @@ uint8 constant A_PERMIT2 = 4; // Permit2 with the user's signature, to the thief
 uint8 constant A_CLEANUP = 8; // the router's cleanupErc20s and cleanupNative to the thief
 uint8 constant A_DEPOSIT_LOG = 16; // the depository's depositNative(user, orderId)
 uint8 constant A_WITHDRAW = 32; // the proxy's withdraw to the thief
+uint8 constant A_FRESH_FILL = 64; // the proxy's tail entry point with a fresh permit the user signed for the caller
 
 uint256 constant NONCE_WORDS = 4;
 
@@ -270,6 +287,7 @@ contract TailHandler is TailTyped {
 
     bytes32 public constant ID_A = keccak256("limit-order-tail order A");
     bytes32 internal constant ATTEMPTS_SLOT = keccak256("limit-order-tail attempts");
+    bytes32 internal constant FRESH_FILLS_SLOT = keccak256("limit-order-tail fresh fills");
     bytes32 public constant ID_B = keccak256("limit-order-tail order B");
 
     // Only for the attackers' calls with a stolen signature, never for the handler's digests
@@ -499,6 +517,7 @@ contract TailHandler is TailTyped {
 
     function act(Action calldata a) external {
         ++calls;
+        _clearFreshFills();
         uint256 kind = a.kind % KINDS;
         if (kind == 4) _oldEntry(a);
         else if (kind == 5 && orders.length != 0) _replay(a);
@@ -1205,15 +1224,19 @@ contract TailHandler is TailTyped {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         Snap memory afterwards = _snap();
         _checkT1(s, before, afterwards, acc, true);
-        _checkTailRules(s, probeRuns, acc);
-        if (s.ok && s.tailEntry) _checkT2(s, f, logs, acc, probeRuns);
+        _checkTailRules(s, acc);
+        if (s.ok && s.tailEntry) {
+            _checkT2(s, f, logs, acc, probeRuns);
+            _checkRefund(s, f, before, afterwards);
+        }
+        if (s.ok) _reachFreshFills(acc);
     }
 
     /// @dev The tail's rules on its fields. The one-token rule: a tail whose permit does not hold exactly one token
     /// reverts with InvalidTail(). The depository rule (#83): so does a tail with an orderId to a recipient the
-    /// spender does not know as a depository. A refused tail reverts before any call reaches Permit2 and before any
-    /// solver call runs, and no tail that both rules allow reverts with InvalidTail()
-    function _checkTailRules(Sub memory s, uint256 probeRuns, Vm.AccountAccess[] memory acc) internal {
+    /// spender does not know as a depository. A refused tail reverts before any call reaches Permit2 or the router,
+    /// so before any solver call runs, and no tail that both rules allow reverts with InvalidTail()
+    function _checkTailRules(Sub memory s, Vm.AccountAccess[] memory acc) internal {
         bool invalidTail = _isInvalidTail(s);
         uint256 count = s.permit.permitted.length;
         bool wrongCount = s.tailEntry && count != 1;
@@ -1250,24 +1273,12 @@ contract TailHandler is TailTyped {
         if (wrongCount) {
             _reach(string.concat("one-token rule: refused with InvalidTail, ", vm.toString(count), " permitted tokens"));
         }
-        if (probe.runs() != probeRuns) {
-            _violate(rule, what, string.concat("solver calls ran before InvalidTail(). ", s.name));
+        if (_called(acc, address(router))) {
+            _violate(rule, what, string.concat("a call reached the router before InvalidTail(). ", s.name));
         }
-        if (_calledPermit2(acc)) {
+        if (_called(acc, PERMIT2)) {
             _violate(rule, what, string.concat("a call reached Permit2 before InvalidTail(). ", s.name));
         }
-    }
-
-    /// @dev Whether any call of the submission reached Permit2
-    function _calledPermit2(Vm.AccountAccess[] memory acc) internal pure returns (bool) {
-        for (uint256 i; i < acc.length; ++i) {
-            if (
-                acc[i].account == PERMIT2
-                    && (acc[i].kind == VmSafe.AccountAccessKind.Call
-                        || acc[i].kind == VmSafe.AccountAccessKind.StaticCall)
-            ) return true;
-        }
-        return false;
     }
 
     function _isInvalidTail(Sub memory s) internal pure returns (bool) {
@@ -1536,6 +1547,62 @@ contract TailHandler is TailTyped {
         }
         assembly ("memory-safe") {
             mstore(list, n)
+        }
+    }
+
+    // ---------------------------------------------------------------- refunds
+
+    /// @dev "refund": see the comment at the top. `b` and `e` are the ledger before and after the fill
+    function _checkRefund(Sub memory s, Fill memory f, Snap memory b, Snap memory e) internal {
+        address token = s.permit.permitted[0].token;
+        bool toUser = s.refundTo == s.user;
+        if (token == s.tail.token || (!toUser && s.refundTo != thirdParty)) return;
+        if (token == _hookToken() && f.attempts & (A_SWEEP | A_CLEANUP) != 0) return;
+        _reach("refund checked a successful tail fill");
+        _reach(string.concat("refund checked, refundTo ", _acctName(s.refundTo)));
+        uint256 stride = ledgerTokens.length + 1;
+        uint256 t = _ledgerIndex(token);
+        uint256 routerAt = _acctIndex(address(router)) * stride + t;
+        uint256 at = _acctIndex(s.refundTo) * stride + t;
+        uint256 left = b.bal[routerAt] + f.received - f.pull;
+        if (left != 0) _reach("refund checked, input left over");
+        uint256 expected = _received(token, left);
+        // the user's debit of the permitted amount, which T1.2 checks
+        uint256 debit = toUser ? s.permit.permitted[0].amount : 0;
+        string memory numbers = string.concat(
+            "the router held ",
+            vm.toString(b.bal[routerAt]),
+            " before the fill and received ",
+            vm.toString(f.received),
+            ", the venue took ",
+            vm.toString(f.pull),
+            ". ",
+            s.name
+        );
+        if (e.bal[at] + debit != b.bal[at] + expected) {
+            uint256 got = e.bal[at] + debit >= b.bal[at] ? e.bal[at] + debit - b.bal[at] : 0;
+            _violate(
+                "refund",
+                string.concat("refundTo ", _acctName(s.refundTo), " got another amount, ", s.cls),
+                string.concat(
+                    _acctName(s.refundTo),
+                    " got ",
+                    vm.toString(got),
+                    " ",
+                    tokenNames[token],
+                    ", expected ",
+                    vm.toString(expected),
+                    "; ",
+                    numbers
+                )
+            );
+        }
+        if (e.bal[routerAt] != 0) {
+            _violate(
+                "refund",
+                string.concat("the router kept the permitted token, ", s.cls),
+                string.concat("the router kept ", vm.toString(e.bal[routerAt]), " ", tokenNames[token], "; ", numbers)
+            );
         }
     }
 
@@ -1953,34 +2020,134 @@ contract TailHandler is TailTyped {
             mstore(list, n)
         }
         // Kept in transient storage for this transaction: the actors read them when they call out
-        bytes memory encoded = abi.encode(list);
-        bytes32 slot = ATTEMPTS_SLOT;
-        assembly ("memory-safe") {
-            let words := shr(5, add(mload(encoded), 31))
-            tstore(slot, mload(encoded))
-            for { let i := 0 } lt(i, words) { i := add(i, 1) } {
-                tstore(add(add(slot, 1), i), mload(add(add(encoded, 32), shl(5, i))))
+        _tstoreBytes(ATTEMPTS_SLOT, abi.encode(list));
+        if (bits & A_FRESH_FILL == 0) return;
+        // Only for the actors that get control in this fill: each fresh fill uses a nonce of the user's
+        address hook = _hookToken();
+        if (f.tokenIn == hook || f.tail.token == hook) {
+            _tstoreBytes(_freshSlot(address(hookTarget)), _freshFill(f, address(hookTarget)));
+        }
+        if (!fork && f.swapMode == SWAP_CALLS_BACK && f.pull != 0 && f.tail.token != f.tokenIn) {
+            _tstoreBytes(_freshSlot(address(tailVenue)), _freshFill(f, address(tailVenue)));
+        }
+        if (f.tail.recipient == address(callout) && f.tail.token == address(0) && f.tail.orderId == bytes32(0)) {
+            _tstoreBytes(_freshSlot(address(callout)), _freshFill(f, address(callout)));
+        }
+        if (f.extras & X_EVIL_CALLBACK != 0) _tstoreBytes(_freshSlot(address(evil)), _freshFill(f, address(evil)));
+    }
+
+    /// @notice The attempts of the current fill, for the hook target, the venue, the recipient that calls out and
+    ///         the malicious relayer, and last the fill with a fresh permit that the user signed for the caller
+    function currentAttempts() external view returns (Attempt[] memory list) {
+        bytes memory encoded = _tloadBytes(ATTEMPTS_SLOT);
+        list = encoded.length == 0 ? new Attempt[](0) : abi.decode(encoded, (Attempt[]));
+        bytes memory fresh = _tloadBytes(_freshSlot(msg.sender));
+        if (fresh.length == 0) return list;
+        Attempt[] memory all = new Attempt[](list.length + 1);
+        for (uint256 i; i < list.length; ++i) {
+            all[i] = list[i];
+        }
+        all[list.length] = Attempt(address(proxy), fresh);
+        return all;
+    }
+
+    /// @dev A tail fill of 1 unit of a token the fill does not use, which the user signs for `caller` as the
+    /// relayer with the next nonce: to an EOA, without an orderId, refunds to the user, no solver calls. Nothing
+    /// but the proxy's guard refuses it while a fill runs
+    function _freshFill(Fill memory f, address caller) internal returns (bytes memory) {
+        address user = _user(f.userIdx);
+        address token = _freshToken(f);
+        ISignatureTransfer.PermitBatchTransferFrom memory permit;
+        permit.permitted = new ISignatureTransfer.TokenPermissions[](1);
+        permit.permitted[0] = ISignatureTransfer.TokenPermissions(token, 1);
+        permit.nonce = nextNonce[user]++;
+        require(permit.nonce < 256 * NONCE_WORDS, "nonce space");
+        permit.deadline = f.deadline;
+        RelayApprovalProxyBase.SweepWithMinimum memory tail =
+            RelayApprovalProxyBase.SweepWithMinimum(token, 1, eoaRecipient, bytes32(0));
+        bytes32 digest = _tailDigest(permit, address(proxy), caller, user, tail);
+        signedBy[user][digest] = caller;
+        return abi.encodeCall(
+            RelayApprovalProxyBase.permit2TransferAndMulticallWithTail,
+            (user, permit, new Call3Value[](0), tail, user, META, _sign(f.userIdx, digest))
+        );
+    }
+
+    /// @dev A permitted token that transfers exactly and that the fill does not use, else one that is not its tail
+    /// token (on the fork, with two tokens)
+    function _freshToken(Fill memory f) internal view returns (address fallbackToken) {
+        for (uint256 i; i < tokensIn.length; ++i) {
+            address t = tokensIn[i];
+            if (t == f.tail.token || t == f.second) continue;
+            if (!fork) {
+                uint8 kind = TailToken(t).kind();
+                if (kind != STANDARD && kind != USDT_APPROVE && kind != NO_ZERO_APPROVE) continue;
+            }
+            if (t != f.tokenIn) return t;
+            fallbackToken = t;
+        }
+        require(fallbackToken != address(0), "no token for a fresh fill");
+    }
+
+    function _freshSlot(address caller) internal pure returns (bytes32) {
+        return keccak256(abi.encode(FRESH_FILLS_SLOT, caller));
+    }
+
+    function _clearFreshFills() internal {
+        address[4] memory actors = [address(hookTarget), address(callout), address(tailVenue), address(evil)];
+        for (uint256 i; i < actors.length; ++i) {
+            _tstoreBytes(_freshSlot(actors[i]), "");
+        }
+    }
+
+    /// @dev Counts, in a successful submission, the first fill with a fresh permit that each callback submitted. A
+    /// hook runs at every transferFrom of its token and may submit the same fill again, whose nonce the first one
+    /// spent if it succeeded: only the first submission shows what the guard does
+    function _reachFreshFills(Vm.AccountAccess[] memory acc) internal {
+        address[4] memory actors = [address(hookTarget), address(callout), address(tailVenue), address(evil)];
+        bool[4] memory seen;
+        for (uint256 i; i < acc.length; ++i) {
+            if (acc[i].kind != VmSafe.AccountAccessKind.Call || acc[i].account != address(proxy)) continue;
+            for (uint256 j; j < actors.length; ++j) {
+                if (seen[j] || acc[i].accessor != actors[j]) continue;
+                bytes memory fresh = _tloadBytes(_freshSlot(actors[j]));
+                if (fresh.length != 0 && keccak256(acc[i].data) == keccak256(fresh)) {
+                    seen[j] = true;
+                    _reach(
+                        string.concat(
+                            _acctName(actors[j]),
+                            " submitted a fill with a fresh permit during a fill",
+                            acc[i].reverted ? ", reverted" : ", succeeded"
+                        )
+                    );
+                }
             }
         }
     }
 
-    /// @notice The attempts of the current fill, for the hook target, the venue, the recipient that calls out and
-    ///         the malicious relayer
-    function currentAttempts() external view returns (Attempt[] memory) {
-        bytes32 slot = ATTEMPTS_SLOT;
+    /// @dev Keeps `data` in transient storage at `slot`: its length, then its words
+    function _tstoreBytes(bytes32 slot, bytes memory data) internal {
+        assembly ("memory-safe") {
+            let words := shr(5, add(mload(data), 31))
+            tstore(slot, mload(data))
+            for { let i := 0 } lt(i, words) { i := add(i, 1) } {
+                tstore(add(add(slot, 1), i), mload(add(add(data, 32), shl(5, i))))
+            }
+        }
+    }
+
+    function _tloadBytes(bytes32 slot) internal view returns (bytes memory data) {
         uint256 length;
         assembly ("memory-safe") {
             length := tload(slot)
         }
-        if (length == 0) return new Attempt[](0);
-        bytes memory encoded = new bytes(length);
+        data = new bytes(length);
         assembly ("memory-safe") {
             let words := shr(5, add(length, 31))
             for { let i := 0 } lt(i, words) { i := add(i, 1) } {
-                mstore(add(add(encoded, 32), shl(5, i)), tload(add(add(slot, 1), i)))
+                mstore(add(add(data, 32), shl(5, i)), tload(add(add(slot, 1), i)))
             }
         }
-        return abi.decode(encoded, (Attempt[]));
     }
 
     function _attemptsMade() internal view returns (uint256[4] memory made) {
@@ -2203,6 +2370,20 @@ contract TailHandler is TailTyped {
             if (tokensOut[i] == token) return i;
         }
         revert("not a token out");
+    }
+
+    function _acctIndex(address a) internal view returns (uint256) {
+        for (uint256 i; i < accts.length; ++i) {
+            if (accts[i] == a) return i;
+        }
+        revert("not an account of the ledger");
+    }
+
+    function _ledgerIndex(address token) internal view returns (uint256) {
+        for (uint256 t; t < ledgerTokens.length; ++t) {
+            if (ledgerTokens[t] == token) return t;
+        }
+        revert("not a ledger token");
     }
 
     function _acctName(address a) internal view returns (string memory) {

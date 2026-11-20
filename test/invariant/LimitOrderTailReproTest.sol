@@ -62,6 +62,7 @@ contract LimitOrderTailReproTest is TailTyped {
         uint256 depositLogs;
         address logEmitter;
         uint256 logAmount;
+        Vm.AccountAccess[] acc; // the submission's calls, those of reverted frames included
     }
 
     function setUp() public {
@@ -124,9 +125,10 @@ contract LimitOrderTailReproTest is TailTyped {
         Attempt[] memory attempts = new Attempt[](1);
         attempts[0] = Attempt(DEPOSITORY, abi.encodeWithSignature("depositNative(address,bytes32)", user, ORDER_ID));
         _setAttempts(attempts);
-        uint256 made = callout.attemptsMade();
-        _assertRefusedWithInvalidTail(_swap(100, address(0), 100), _tail(address(0), 100, address(callout), ORDER_ID));
-        assertEq(callout.attemptsMade(), made, "the recipient never ran");
+        Outcome memory o = _assertRefusedWithInvalidTail(
+            _swap(100, address(0), 100), _tail(address(0), 100, address(callout), ORDER_ID)
+        );
+        assertFalse(_called(o.acc, address(callout)), "the recipient never ran");
     }
 
     // ================================================================ reproductions: these fail on the current contracts
@@ -281,23 +283,24 @@ contract LimitOrderTailReproTest is TailTyped {
     // ================================================================ helpers
 
     /// @dev Signs and submits a fill of 100 STD with `calls` and `tail` like _fill, and asserts #83's refusal:
-    ///      InvalidTail(), no solver call ran, no balance moved and the nonce stays unused
+    ///      InvalidTail(), no call reached Permit2 or the router (so no solver call ran), no balance moved and the
+    ///      nonce stays unused
     function _assertRefusedWithInvalidTail(
         Call3Value[] memory calls,
         RelayApprovalProxyBase.SweepWithMinimum memory tail
-    ) internal {
+    ) internal returns (Outcome memory o) {
         uint256 usedNonce = nonce;
-        uint256 runs = probe.runs();
         uint256 userStd = std.balanceOf(user);
         uint256 venueStd = std.balanceOf(address(venue));
         uint256 recipientBefore =
             tail.token == address(0) ? tail.recipient.balance : TailToken(tail.token).balanceOf(tail.recipient);
         uint256 depositoryBefore =
             tail.token == address(0) ? DEPOSITORY.balance : TailToken(tail.token).balanceOf(DEPOSITORY);
-        Outcome memory o = _fill(100, calls, tail, user);
+        o = _fill(100, calls, tail, user);
         assertFalse(o.ok, "the fill must revert");
         assertEq(o.ret, abi.encodeWithSelector(RelayApprovalProxyBase.InvalidTail.selector), "InvalidTail()");
-        assertEq(probe.runs(), runs, "no solver call ran");
+        assertFalse(_called(o.acc, address(router)), "no call reached the router, so no solver call ran");
+        assertFalse(_called(o.acc, PERMIT2), "no call reached Permit2");
         assertEq(std.balanceOf(user), userStd, "the user's STD did not move");
         assertEq(std.balanceOf(address(router)), 0, "nothing reached the router");
         assertEq(std.balanceOf(address(venue)), venueStd, "the venue's STD did not move");
@@ -373,6 +376,7 @@ contract LimitOrderTailReproTest is TailTyped {
         uint256 before =
             tail.token == address(0) ? tail.recipient.balance : TailToken(tail.token).balanceOf(tail.recipient);
         vm.recordLogs();
+        vm.startStateDiffRecording();
         (o.ok, o.ret) = _viaMulticaller(
             address(proxy),
             abi.encodeCall(
@@ -380,6 +384,7 @@ contract LimitOrderTailReproTest is TailTyped {
                 (user, permit, solverCalls, tail, refundTo, META, signature)
             )
         );
+        o.acc = vm.stopAndReturnStateDiff();
         Vm.Log[] memory logs = vm.getRecordedLogs();
         if (!o.ok) return o;
         o.B = probe.routerBalance();
