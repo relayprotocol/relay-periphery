@@ -5,6 +5,7 @@ import {Test, Vm} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
+import {RelayApprovalProxyBase} from "../src/RelayApprovalProxyBase.sol";
 import {RelayRouter} from "../src/RelayRouter.sol";
 import {RelayRouter_NonTstore} from "../src/RelayRouter_NonTstore.sol";
 import {TestERC20} from "./mocks/TestERC20.sol";
@@ -459,7 +460,7 @@ contract RouterProxyHardeningTest is Test {
         vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
-                RelayApprovalProxy.InvalidRecipient.selector,
+                RelayApprovalProxyBase.InvalidRecipient.selector,
                 address(0)
             )
         );
@@ -475,7 +476,7 @@ contract RouterProxyHardeningTest is Test {
         vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
-                RelayApprovalProxy.InvalidRecipient.selector,
+                RelayApprovalProxyBase.InvalidRecipient.selector,
                 address(0)
             )
         );
@@ -495,7 +496,7 @@ contract RouterProxyHardeningTest is Test {
         vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
-                RelayApprovalProxy.InvalidRecipient.selector,
+                RelayApprovalProxyBase.InvalidRecipient.selector,
                 address(proxy)
             )
         );
@@ -511,7 +512,7 @@ contract RouterProxyHardeningTest is Test {
         vm.prank(alice);
         vm.expectRevert(
             abi.encodeWithSelector(
-                RelayApprovalProxy.InvalidRecipient.selector,
+                RelayApprovalProxyBase.InvalidRecipient.selector,
                 address(proxy)
             )
         );
@@ -548,14 +549,14 @@ contract RouterProxyHardeningTest is Test {
     function test_constructorRejectsZeroOwner() public {
         address router = address(new RelayRouter());
         vm.expectRevert(
-            RelayApprovalProxy.ConstructorArgCannotBeZeroAddress.selector
+            RelayApprovalProxyBase.ConstructorArgCannotBeZeroAddress.selector
         );
         new RelayApprovalProxy(address(0), router, permit2);
     }
 
     function test_constructorRejectsZeroRouter() public {
         vm.expectRevert(
-            RelayApprovalProxy.ConstructorArgCannotBeZeroAddress.selector
+            RelayApprovalProxyBase.ConstructorArgCannotBeZeroAddress.selector
         );
         new RelayApprovalProxy(alice, address(0), permit2);
     }
@@ -563,7 +564,7 @@ contract RouterProxyHardeningTest is Test {
     function test_constructorRejectsZeroPermit2() public {
         address router = address(new RelayRouter());
         vm.expectRevert(
-            RelayApprovalProxy.ConstructorArgCannotBeZeroAddress.selector
+            RelayApprovalProxyBase.ConstructorArgCannotBeZeroAddress.selector
         );
         new RelayApprovalProxy(alice, router, address(0));
     }
