@@ -219,6 +219,41 @@ abstract contract RelayRouterBase is RouteRaceEngine {
         }
     }
 
+    function sweepWithMinimum(address token, uint256 minAmount, address to, bytes calldata data)
+        external
+        outsideRace
+    {
+        uint256 amount = IERC20(token).balanceOf(address(this));
+        if (amount < minAmount) revert InsufficientOutput(amount, minAmount);
+        if (data.length == 0) {
+            token.safeTransfer(to, amount);
+        } else {
+            _revertIfHookRegistry(to);
+            token.safeApproveWithRetry(to, amount);
+            (bool success,) = to.call(data);
+            if (!success) revert CallFailed();
+            token.safeApprove(to, 0);
+            uint256 remaining = IERC20(token).balanceOf(address(this));
+            amount = amount > remaining ? amount - remaining : 0;
+            if (amount < minAmount) revert InsufficientOutput(amount, minAmount);
+        }
+        emit FundsMovement(address(this), to, token, amount, "");
+    }
+
+    function sweepNativeWithMinimum(uint256 minAmount, address to, bytes calldata data) external outsideRace {
+        uint256 amount = address(this).balance;
+        if (amount < minAmount) revert InsufficientOutput(amount, minAmount);
+        if (data.length == 0) {
+            to.safeTransferETH(amount);
+            emit SolverNativeTransfer(to, amount);
+        } else {
+            _revertIfHookRegistry(to);
+            (bool success,) = to.call{value: amount}(data);
+            if (!success) revert CallFailed();
+        }
+        emit FundsMovement(address(this), to, address(0), amount, "");
+    }
+
     function _nftRecipient() private view returns (address recipient) {
         if (_load(CONTEXT_SLOT) & PHASE_MASK != 0) revert Reentrancy();
         recipient = address(uint160(_load(RECIPIENT_SLOT)));
