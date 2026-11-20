@@ -90,10 +90,10 @@ contract SolverCallExecutedHashTest is Test {
         _failedCallEmitsNothing(address(new RelayRouter_NonTstore()));
     }
 
-    /// @notice Both routers report the version that ships the hashed event
+    /// @notice Both routers report their version
     function test_version() public {
-        assertEq(new RelayRouter().VERSION(), "3.2");
-        assertEq(new RelayRouter_NonTstore().VERSION(), "3.2");
+        assertEq(new RelayRouter().VERSION(), "4.0");
+        assertEq(new RelayRouter_NonTstore().VERSION(), "4.0");
     }
 
     function _emitsHashOfEmptyCalldata(address router) internal {

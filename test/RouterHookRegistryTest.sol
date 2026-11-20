@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {IERC1820Registry} from "@openzeppelin/contracts/interfaces/IERC1820Registry.sol";
 
 import {Call3Value} from "../src/common/Multicall3.sol";
+import {IRelayRouter} from "../src/interfaces/IRelayRouter.sol";
 import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
 import {RelayRouter} from "../src/RelayRouter.sol";
 import {RelayRouter_NonTstore} from "../src/RelayRouter_NonTstore.sol";
@@ -148,7 +149,7 @@ contract RouterHookRegistryTest is Test {
         // Amount 0 sweeps the router's whole balance
         uint256[] memory sweep = new uint256[](1);
         Call3Value[] memory calls =
-            _oneCall(router, false, abi.encodeCall(RelayRouter.cleanupErc20s, (tokens, recipients, sweep, "")));
+            _oneCall(router, false, abi.encodeCall(IRelayRouter.cleanupErc20s, (tokens, recipients, sweep, "")));
 
         vm.prank(alice);
         proxy.transferAndMulticall(tokens, amounts, calls, alice, address(0), "");
