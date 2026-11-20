@@ -9,9 +9,9 @@ if [ "$VERIFICATION_FLAGS" != "null" ]; then
 
     # Verify the contracts using the above flags
     forge verify-contract ${expanded_verification_flags[@]} $RELAY_ROUTER ./src/RelayRouter_NonTstore.sol:RelayRouter_NonTstore
-    forge verify-contract ${expanded_verification_flags[@]} $RELAY_APPROVAL_PROXY ./src/RelayApprovalProxy.sol:RelayApprovalProxy --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
+    forge verify-contract ${expanded_verification_flags[@]} $RELAY_APPROVAL_PROXY ./src/RelayApprovalProxy_NonTstore.sol:RelayApprovalProxy_NonTstore --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
 else
     # Verify the contracts
     forge verify-contract --chain $CHAIN $RELAY_ROUTER ./src/RelayRouter_NonTstore.sol:RelayRouter_NonTstore
-    forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/RelayApprovalProxy.sol:RelayApprovalProxy --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
+    forge verify-contract --chain $CHAIN $RELAY_APPROVAL_PROXY ./src/RelayApprovalProxy_NonTstore.sol:RelayApprovalProxy_NonTstore --constructor-args $(cast abi-encode "constructor(address, address, address)" $DEPLOYER_ADDRESS $RELAY_ROUTER $PERMIT2)
 fi
