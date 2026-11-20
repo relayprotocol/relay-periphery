@@ -14,14 +14,19 @@ import {TailHandler, Action} from "./LimitOrderTailHandler.sol";
 // LimitOrderTailForkInvariantTest runs the same handler on a Base fork with real USDC, WETH and Uniswap V3 as the
 // venue, at fewer runs.
 //
-// The handler models #83: a tail with an orderId deposits only into DEPOSITORY or a depository the proxy's owner
-// allowed (invariant_depositoryRule); everything else reverts with InvalidTail and is checked under T1.3.
+// The handler models the tail's rules on its fields: a tail permit holds exactly one token (invariant_oneTokenRule),
+// and a tail with an orderId deposits only into DEPOSITORY or a depository the proxy's owner allowed (#83,
+// invariant_depositoryRule). Any other tail reverts with InvalidTail and is checked under T1.3.
 //
 // Every invariant failure on the current contracts has a reproduction with fixed inputs in
 // LimitOrderTailReproTest.sol, and the behaviour T2 leaves to the solver (fee-on-transfer and rounding tokens) is
 // pinned by its test_knownLimit_* tests.
 
 abstract contract TailInvariants is Test {
+    // Action.second: a tail permit with two tokens, or with none
+    uint8 internal constant TWO_TOKENS = 6;
+    uint8 internal constant NO_TOKEN = 7;
+
     TailHandler internal handler;
 
     /// @dev The fuzzer calls only `act` of `target`: the handler, or on the fork the entry that forwards to it
@@ -61,9 +66,16 @@ abstract contract TailInvariants is Test {
     }
 
     /// @dev #83: a tail with an orderId to a recipient that is not a known depository reverts with InvalidTail()
-    /// before any solver call runs, no other fill reverts with it, and nobody but the owner allows a depository
+    /// before any call reaches Permit2 or a solver call runs, no tail that both rules allow reverts with it, and
+    /// nobody but the owner allows a depository
     function invariant_depositoryRule() public view {
         assertEq(handler.violations("depository rule"), 0, handler.firstViolation("depository rule"));
+    }
+
+    /// @dev A tail whose permit holds no token or two reverts with InvalidTail() before any call reaches Permit2 or a
+    /// solver call runs
+    function invariant_oneTokenRule() public view {
+        assertEq(handler.violations("one-token rule"), 0, handler.firstViolation("one-token rule"));
     }
 
     /// @dev The handler's own measurements agree with each other: the probe ran once, the tail's frame and logs
@@ -75,11 +87,13 @@ abstract contract TailInvariants is Test {
     /// @dev Logs at the end of each run how many checks of each kind the run made, so a run that never reached a
     /// successful fill shows as such
     function afterInvariant() public {
-        string[7] memory keys = [
+        string[9] memory keys = [
             "T1.1 a user's balance decreased",
             "T1.2 checked a successful fill",
             "T1.3 checked a call that reverted",
             "T1.3 checked a tail refused with InvalidTail",
+            "one-token rule: refused with InvalidTail, 0 permitted tokens",
+            "one-token rule: refused with InvalidTail, 2 permitted tokens",
             "T2 checked a successful tail fill",
             "T2.2 checked a fill with an orderId",
             "T2.3 checked a fill without an orderId"
@@ -103,7 +117,8 @@ abstract contract TailInvariants is Test {
     }
 
     function _logParts() internal {
-        string[9] memory parts = ["T1.1", "T1.2", "T1.3", "T2.1", "T2.2", "T2.3", "T2.4", "depository rule", "harness"];
+        string[10] memory parts =
+            ["T1.1", "T1.2", "T1.3", "T2.1", "T2.2", "T2.3", "T2.4", "depository rule", "one-token rule", "harness"];
         for (uint256 p; p < parts.length; ++p) {
             string[] memory list = handler.classesOf(parts[p]);
             emit log_named_uint(string.concat(parts[p], " violations"), handler.violations(parts[p]));
@@ -194,17 +209,25 @@ contract LimitOrderTailInvariantTest is TailInvariants {
             a.mutation = sub;
             _act(a);
         }
-        // T1: the fee and rounding tokens, and the others, as permitted tokens; two permitted tokens
+        // T1: the fee and rounding tokens, and the others, as permitted tokens
         for (uint8 t; t < 6; ++t) {
             Action memory a = _base();
             a.tokenIn = t;
             a.minMode = 2;
             _act(a);
         }
-        {
+        // the one-token rule: a tail permit with two tokens or none is refused, with an orderId to the depository and
+        // without one to an EOA; permit2TransferAndMulticall still takes both
+        uint8[2] memory shapes = [TWO_TOKENS, NO_TOKEN];
+        for (uint256 i; i < shapes.length; ++i) {
             Action memory a = _base();
-            a.second = 1;
+            a.second = shapes[i];
             a.minMode = 2;
+            _act(a);
+            a.recipient = R_EOA;
+            a.orderId = 0;
+            _act(a);
+            a.kind = 4;
             _act(a);
         }
         // T2: an ERC-20 and native to every recipient, with and without an orderId, for at least half of B. With an
@@ -408,7 +431,10 @@ contract LimitOrderTailInvariantTest is TailInvariants {
         for (uint256 i; i < outs.length; ++i) {
             _reached(string.concat("T2 success, tail token ", outs[i]));
         }
-        _reached("T2 success, two permitted tokens");
+        _reached("one-token rule: refused with InvalidTail, 0 permitted tokens");
+        _reached("one-token rule: refused with InvalidTail, 2 permitted tokens");
+        _reached("RelayerWitness order as signed with 0 permitted tokens, succeeded");
+        _reached("RelayerWitness order as signed with 2 permitted tokens, succeeded");
         // every recipient x orderId class was tried: it filled, or #83 refused it, or the recipient reverts
         string[8] memory recipients = [
             "the depository with an orderId",
@@ -547,6 +573,13 @@ contract LimitOrderTailForkInvariantTest is TailInvariants {
         _act(allowed);
         allowed.recipient = 1;
         _act(allowed);
+        // the one-token rule: WETH + USDC, and no token, are refused
+        Action memory shape = _base();
+        shape.amount = 4e17;
+        shape.second = TWO_TOKENS;
+        _act(shape);
+        shape.second = NO_TOKEN;
+        _act(shape);
         for (uint8 m = 1; m < 6; ++m) {
             Action memory a = _base();
             a.mutation = m;
@@ -565,6 +598,8 @@ contract LimitOrderTailForkInvariantTest is TailInvariants {
         _reached("T2 success, recipient the EOA recipient without an orderId");
         _reached("T2 success, recipient the allowed depository with an orderId");
         _reached("refused with InvalidTail, recipient the EOA recipient with an orderId");
+        _reached("one-token rule: refused with InvalidTail, 0 permitted tokens");
+        _reached("one-token rule: refused with InvalidTail, 2 permitted tokens");
         _reached("T1.3 checked a call that reverted");
     }
 }

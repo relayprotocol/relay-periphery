@@ -64,10 +64,14 @@ import {
 //   funds; every debit and every allowance is checked exactly. A token that lowers even an unlimited allowance
 //   (USDC) lowers the user's allowance for Permit2 by what Permit2 pulled: that decrease is the permitted transfer.
 // - "Native: the router sends B in one call": the calls with value that the router makes inside the tail frame.
+// - The one-token rule ("one-token rule"): a tail whose permit does not hold exactly one token reverts with
+//   InvalidTail(). The handler signs tail permits with no token and with two (Action.second).
+//   permit2TransferAndMulticall has no such rule and takes both.
 // - The depository rule (#83, "depository rule"): a tail with an orderId whose recipient is neither DEPOSITORY nor
-//   allowed by the spender proxy's owner (isDepository) reverts with InvalidTail() before anything moves, and no
-//   other tail reverts with InvalidTail(). T1.3 is checked for every refused tail like for any other revert. The
-//   owner (the handler) allows one more contract with the depository's code, `depository2`, and nothing else.
+//   allowed by the spender proxy's owner (isDepository) reverts with InvalidTail(). The owner (the handler) allows
+//   one more contract with the depository's code, `depository2`, and nothing else.
+// - A tail that either rule refuses reverts before any call reaches Permit2 and before any solver call runs, and
+//   T1.3 is checked for it like for any other revert. No tail that both rules allow reverts with InvalidTail().
 // - A "depository log" in T2 is a deposit event from Relay's depository, from the allowed depository or from
 //   tail.recipient.
 // - T2's token set (tokensOut) leaves out the fee-on-transfer and the rounding tokens: the solver signs tails only in
@@ -133,7 +137,7 @@ struct Action {
     uint8 user; // % 2: the EOA, the ERC-1271 wallet
     uint8 relayer; // % 3: the multicaller, another relayer (an EOA), a malicious relayer (a contract)
     uint8 tokenIn; // % tokensIn.length
-    uint8 second; // % 4: 1-3 a second permitted token
+    uint8 second; // % 8: 0-5 one permitted token, 6 two (second >> 3 picks the other one), 7 none
     uint8 tokenOut; // % tokensOut.length
     uint8 recipient; // % 7: the depository, an EOA, calls out, no code, pulls half, reverts, the allowed depository
     uint8 orderId; // % 3: none, ID_A, ID_B
@@ -153,6 +157,7 @@ struct Fill {
     address tokenIn;
     uint256 amount;
     uint256 received;
+    uint8 count; // the number of permitted tokens: 0, 1 or 2
     address second;
     uint256 secondAmount;
     uint8 swapMode;
@@ -518,6 +523,8 @@ contract TailHandler is TailTyped {
         if (mutation >= MUTATIONS) mutation = M_NONE;
         // the wallet already has code: only code without isValidSignature changes anything for it
         if (f.userIdx == 1 && mutation == M_WALLET_CODE) mutation = M_NONE;
+        // a permit without a token has no permitted token to change
+        if (f.count == 0 && (mutation == M_TOKEN || mutation == M_AMOUNT)) mutation = M_NONE;
 
         Sub memory s;
         s.tailEntry = true;
@@ -563,7 +570,7 @@ contract TailHandler is TailTyped {
             _reach(string.concat("fill succeeded, relayer ", _relayerName(f.relayerIdx)));
             _reachFill(f, made, succeeded);
         }
-        if (s.refused && _isInvalidTail(s) && mutation == M_NONE) {
+        if (s.refused && f.count == 1 && _isInvalidTail(s) && mutation == M_NONE) {
             _reach(
                 string.concat("refused with InvalidTail, recipient ", _acctName(f.tail.recipient), " with an orderId")
             );
@@ -580,12 +587,11 @@ contract TailHandler is TailTyped {
         f.tail.token = tokensOut[a.tokenOut % tokensOut.length];
         f.amount = _amountFor(f.tokenIn, a.amount);
         f.received = _received(f.tokenIn, f.amount);
-        if (a.second % 4 != 0 && tokensIn.length > 1) {
-            address second = tokensIn[(inIdx + a.second) % tokensIn.length];
-            if (second != f.tokenIn) {
-                f.second = second;
-                f.secondAmount = _amountFor(second, a.aux);
-            }
+        uint256 shape = a.second % 8;
+        f.count = shape == 6 ? 2 : shape == 7 ? 0 : 1;
+        if (f.count == 2) {
+            f.second = tokensIn[(inIdx + 1 + uint256(a.second >> 3) % (tokensIn.length - 1)) % tokensIn.length];
+            f.secondAmount = _amountFor(f.second, a.aux);
         }
         f.swapMode = a.swap % 6;
         if (fork && (f.swapMode == SWAP_PAYS_LESS || f.swapMode == SWAP_CALLS_BACK || f.swapMode == SWAP_PAYS_MORE)) {
@@ -632,11 +638,9 @@ contract TailHandler is TailTyped {
     }
 
     function _permit(Fill memory f) internal pure returns (ISignatureTransfer.PermitBatchTransferFrom memory permit) {
-        permit.permitted = new ISignatureTransfer.TokenPermissions[](f.second == address(0) ? 1 : 2);
-        permit.permitted[0] = ISignatureTransfer.TokenPermissions(f.tokenIn, f.amount);
-        if (f.second != address(0)) {
-            permit.permitted[1] = ISignatureTransfer.TokenPermissions(f.second, f.secondAmount);
-        }
+        permit.permitted = new ISignatureTransfer.TokenPermissions[](f.count);
+        if (f.count != 0) permit.permitted[0] = ISignatureTransfer.TokenPermissions(f.tokenIn, f.amount);
+        if (f.count == 2) permit.permitted[1] = ISignatureTransfer.TokenPermissions(f.second, f.secondAmount);
         permit.nonce = f.nonce;
         permit.deadline = f.deadline;
     }
@@ -863,6 +867,18 @@ contract TailHandler is TailTyped {
         _execute(s, f);
         if (s.ok && s.digest == digest) orders[orderIndex].filled = true;
         _reach(string.concat("RelayerWitness order ", subs[sub], s.ok ? ", succeeded" : ", reverted"));
+        if (permit.permitted.length != 1) {
+            _reach(
+                string.concat(
+                    "RelayerWitness order ",
+                    subs[sub],
+                    " with ",
+                    vm.toString(permit.permitted.length),
+                    " permitted tokens",
+                    s.ok ? ", succeeded" : ", reverted"
+                )
+            );
+        }
     }
 
     function _oldCalls(ISignatureTransfer.PermitBatchTransferFrom memory permit)
@@ -900,6 +916,7 @@ contract TailHandler is TailTyped {
         f.tokenIn = o.tokens[0];
         f.amount = o.amounts[0];
         f.received = _received(f.tokenIn, f.amount);
+        f.count = o.count;
         if (o.count == 2) {
             f.second = o.tokens[1];
             f.secondAmount = o.amounts[1];
@@ -1188,37 +1205,69 @@ contract TailHandler is TailTyped {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         Snap memory afterwards = _snap();
         _checkT1(s, before, afterwards, acc, true);
-        _checkDepositoryRule(s, probeRuns);
+        _checkTailRules(s, probeRuns, acc);
         if (s.ok && s.tailEntry) _checkT2(s, f, logs, acc, probeRuns);
     }
 
-    /// @dev A tail with an orderId to a recipient the spender does not know as a depository reverts with
-    /// InvalidTail() before any solver call runs; no other fill reverts with InvalidTail()
-    function _checkDepositoryRule(Sub memory s, uint256 probeRuns) internal {
+    /// @dev The tail's rules on its fields. The one-token rule: a tail whose permit does not hold exactly one token
+    /// reverts with InvalidTail(). The depository rule (#83): so does a tail with an orderId to a recipient the
+    /// spender does not know as a depository. A refused tail reverts before any call reaches Permit2 and before any
+    /// solver call runs, and no tail that both rules allow reverts with InvalidTail()
+    function _checkTailRules(Sub memory s, uint256 probeRuns, Vm.AccountAccess[] memory acc) internal {
         bool invalidTail = _isInvalidTail(s);
-        if (s.refused) {
-            _reach("depository rule: a tail with an orderId to an unknown recipient was submitted");
-            if (!invalidTail) {
+        uint256 count = s.permit.permitted.length;
+        bool wrongCount = s.tailEntry && count != 1;
+        if (wrongCount) {
+            _reach(string.concat("one-token rule: a tail permit with ", vm.toString(count), " tokens was submitted"));
+        }
+        if (s.refused) _reach("depository rule: a tail with an orderId to an unknown recipient was submitted");
+        if (!wrongCount && !s.refused) {
+            if (invalidTail) {
                 _violate(
                     "depository rule",
-                    string.concat("an orderId to ", _acctName(s.tail.recipient), ", ", s.cls),
-                    string.concat(
-                        "the fill ", s.ok ? "succeeded" : "reverted otherwise", ", expected InvalidTail(). ", s.name
-                    )
+                    string.concat("InvalidTail() for ", _acctName(s.tail.recipient), ", ", s.cls),
+                    string.concat("a fill the rules allow reverted with InvalidTail(). ", s.name)
                 );
-            } else {
-                _reach("T1.3 checked a tail refused with InvalidTail");
-                if (probe.runs() != probeRuns) {
-                    _violate("depository rule", s.cls, string.concat("solver calls ran before InvalidTail(). ", s.name));
-                }
             }
-        } else if (invalidTail) {
-            _violate(
-                "depository rule",
-                string.concat("InvalidTail() for ", _acctName(s.tail.recipient), ", ", s.cls),
-                string.concat("a fill the rule allows reverted with InvalidTail(). ", s.name)
-            );
+            return;
         }
+        // the proxy checks the permit's length first
+        string memory rule = wrongCount ? "one-token rule" : "depository rule";
+        string memory what = wrongCount
+            ? string.concat(vm.toString(count), " permitted tokens, ", s.cls)
+            : string.concat("an orderId to ", _acctName(s.tail.recipient), ", ", s.cls);
+        if (!invalidTail) {
+            _violate(
+                rule,
+                what,
+                string.concat(
+                    "the fill ", s.ok ? "succeeded" : "reverted otherwise", ", expected InvalidTail(). ", s.name
+                )
+            );
+            return;
+        }
+        _reach("T1.3 checked a tail refused with InvalidTail");
+        if (wrongCount) {
+            _reach(string.concat("one-token rule: refused with InvalidTail, ", vm.toString(count), " permitted tokens"));
+        }
+        if (probe.runs() != probeRuns) {
+            _violate(rule, what, string.concat("solver calls ran before InvalidTail(). ", s.name));
+        }
+        if (_calledPermit2(acc)) {
+            _violate(rule, what, string.concat("a call reached Permit2 before InvalidTail(). ", s.name));
+        }
+    }
+
+    /// @dev Whether any call of the submission reached Permit2
+    function _calledPermit2(Vm.AccountAccess[] memory acc) internal pure returns (bool) {
+        for (uint256 i; i < acc.length; ++i) {
+            if (
+                acc[i].account == PERMIT2
+                    && (acc[i].kind == VmSafe.AccountAccessKind.Call
+                        || acc[i].kind == VmSafe.AccountAccessKind.StaticCall)
+            ) return true;
+        }
+        return false;
     }
 
     function _isInvalidTail(Sub memory s) internal pure returns (bool) {
@@ -1988,7 +2037,6 @@ contract TailHandler is TailTyped {
                 );
             }
         }
-        if (f.second != address(0)) _reach("T2 success, two permitted tokens");
     }
 
     // ================================================================ calls built from a submission
@@ -2030,7 +2078,7 @@ contract TailHandler is TailTyped {
         o.userIdx = f.userIdx;
         o.relayerIdx = f.relayerIdx;
         o.swapMode = f.swapMode;
-        o.count = f.second == address(0) ? 1 : 2;
+        o.count = f.count;
         o.tokens[0] = f.tokenIn;
         o.amounts[0] = f.amount;
         o.tokens[1] = f.second;
@@ -2213,10 +2261,8 @@ contract TailHandler is TailTyped {
         string[6] memory swaps =
             ["honest venue", "venue pays less", "venue takes less", "venue calls back", "no swap", "venue pays more"];
         return string.concat(
-            vm.toString(f.amount),
-            " ",
-            tokenNames[f.tokenIn],
-            f.second == address(0) ? "" : string.concat(" + ", vm.toString(f.secondAmount), " ", tokenNames[f.second]),
+            f.count == 0 ? "no permitted token" : string.concat(vm.toString(f.amount), " ", tokenNames[f.tokenIn]),
+            f.count == 2 ? string.concat(" + ", vm.toString(f.secondAmount), " ", tokenNames[f.second]) : "",
             " for ",
             tokenNames[f.tail.token],
             ", ",
