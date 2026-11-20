@@ -34,6 +34,14 @@ first deployment of the residue sweep of DEC-2400, of `permit2TransferAndMultica
 the reentrancy guard on every entry point. Its version is 4.0, which is also the EIP-712 domain
 version that multicall authorizations are signed against.
 
+A limit-order tail with an order id deposits only into `DEPOSITORY`
+(`0x4cD00E387622C35bDDB9b4c962C136462338BC31`, a constant, so the proxy address stays the same on
+every chain) or into a depository that the proxy owner allowed. On a chain whose depository has
+another address (cronos, metis, mantle and linea use `0x59916DA825D2D2eC1BF878D71c88826F6633ecca`;
+testnets use `0x5Feab8dB4534F9F7E2669Bb260c57a01aD1c12e3`), the owner must call
+`setDepository(<depository>, true)` before limit orders run there. Until then, every tail fill
+with an order id on that chain reverts with `InvalidTail`.
+
 4.0 is the first version compiled with a Yul optimizer step sequence of its own, next to the
 `optimizer_runs = 1_000_000` it shares with 3.2 (see `foundry.toml`). Compiler settings are
 part of the creation code and therefore of every CREATE2 address, so:
