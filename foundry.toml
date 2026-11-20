@@ -51,6 +51,13 @@ optimizer_runs = 200
 bytecode_hash = "none"
 cbor_metadata = false
 
+# The invariant suites in test/invariant run at this depth in a plain `forge test`. For a deep
+# pass, raise it from the environment, for example with FOUNDRY_INVARIANT_RUNS=512 and
+# FOUNDRY_INVARIANT_DEPTH=192. Without this section forge runs 256 runs of depth 500.
+[invariant]
+runs = 32
+depth = 48
+
 [lint]
 exclude_lints = ["mixed-case-function", "mixed-case-variable", "asm-keccak256"]
 
