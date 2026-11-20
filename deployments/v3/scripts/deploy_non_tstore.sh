@@ -10,6 +10,7 @@ forge script ./script/RouterAndApprovalProxy_NonTstore_Deployer.s.sol:RouterAndA
     --broadcast \
     --skip Test.sol \
     --skip RelayRouter.sol \
+    --skip RelayApprovalProxy.sol \
     --skip ReentrancyGuardMsgSender.sol \
     --skip RouterAndApprovalProxyDeployer.s.sol \
     --private-key $DEPLOYER_PK \

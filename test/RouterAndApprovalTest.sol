@@ -12,6 +12,7 @@ import {Vm} from "forge-std/Vm.sol";
 import {Call3Value} from "../src/common/Multicall3.sol";
 import {Permit2612, Permit3009} from "../src/common/Permits.sol";
 import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
+import {RelayApprovalProxyBase} from "../src/RelayApprovalProxyBase.sol";
 import {RelayRouter} from "../src/RelayRouter.sol";
 
 import {BaseTest} from "./base/BaseTest.sol";
@@ -1193,7 +1194,7 @@ contract RouterAndApprovalTest is BaseTest, EIP712 {
             vm.sign(bob.key, bobPermitHash);
 
         bytes[] memory mismatchedMulticallSignatures = new bytes[](1);
-        vm.expectRevert(RelayApprovalProxy.ArrayLengthsMismatch.selector);
+        vm.expectRevert(RelayApprovalProxyBase.ArrayLengthsMismatch.selector);
         approvalProxy.permit3009TransferAndMulticall(
             permits,
             tokens,
@@ -1214,7 +1215,7 @@ contract RouterAndApprovalTest is BaseTest, EIP712 {
         subsetSignatures[0] = multicallSignatures[0];
         vm.prank(alice.addr);
         vm.expectRevert(
-            RelayApprovalProxy.InvalidMulticallSignature.selector
+            RelayApprovalProxyBase.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             subsetPermits,
@@ -1238,7 +1239,7 @@ contract RouterAndApprovalTest is BaseTest, EIP712 {
         Permit3009[] memory emptyPermits = new Permit3009[](0);
         address[] memory emptyTokens = new address[](0);
         bytes[] memory emptyMulticallSignatures = new bytes[](0);
-        vm.expectRevert(RelayApprovalProxy.PermitsCannotBeEmpty.selector);
+        vm.expectRevert(RelayApprovalProxyBase.PermitsCannotBeEmpty.selector);
         approvalProxy.permit3009TransferAndMulticall(
             emptyPermits,
             emptyTokens,
@@ -1254,7 +1255,7 @@ contract RouterAndApprovalTest is BaseTest, EIP712 {
 
         vm.prank(bob.addr);
         vm.expectRevert(
-            RelayApprovalProxy.InvalidMulticallSignature.selector
+            RelayApprovalProxyBase.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             permits,
@@ -1274,7 +1275,7 @@ contract RouterAndApprovalTest is BaseTest, EIP712 {
         );
         vm.prank(alice.addr);
         vm.expectRevert(
-            RelayApprovalProxy.InvalidMulticallSignature.selector
+            RelayApprovalProxyBase.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             permits,
@@ -1293,7 +1294,7 @@ contract RouterAndApprovalTest is BaseTest, EIP712 {
         bytes[] memory missingMulticallSignatures = new bytes[](2);
         vm.prank(alice.addr);
         vm.expectRevert(
-            RelayApprovalProxy.InvalidMulticallSignature.selector
+            RelayApprovalProxyBase.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             permits,
@@ -1311,7 +1312,7 @@ contract RouterAndApprovalTest is BaseTest, EIP712 {
         multicallSignatures[1] = aliceMulticallSignature;
         vm.prank(alice.addr);
         vm.expectRevert(
-            RelayApprovalProxy.InvalidMulticallSignature.selector
+            RelayApprovalProxyBase.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall(
             permits,
@@ -1567,7 +1568,7 @@ contract RouterAndApprovalTest is BaseTest, EIP712 {
         vm.deal(bob.addr, 1 ether);
         vm.prank(bob.addr);
         vm.expectRevert(
-            RelayApprovalProxy.InvalidMulticallSignature.selector
+            RelayApprovalProxyBase.InvalidMulticallSignature.selector
         );
         approvalProxy.permit3009TransferAndMulticall{value: 1 wei}(
             permits,

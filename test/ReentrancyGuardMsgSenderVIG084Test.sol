@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {Call3Value} from "../src/common/Multicall3.sol";
 import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
+import {RelayApprovalProxyBase} from "../src/RelayApprovalProxyBase.sol";
 import {RelayRouter} from "../src/RelayRouter.sol";
 import {RelayRouter_NonTstore} from "../src/RelayRouter_NonTstore.sol";
 
@@ -58,15 +59,15 @@ contract VIG084UnrelatedReentrantCaller {
 }
 
 contract ReentrancyGuardMsgSenderVIG084Test is Test {
-    function test_nestedApprovalProxyCallDoesNotClearTransientGuard() public {
-        _assertNestedCallDoesNotClearGuard(address(new RelayRouter()));
+    function test_nestedApprovalProxyCallRevertsWithTransientRouter() public {
+        _assertNestedCallReverts(address(new RelayRouter()));
     }
 
-    function test_nestedApprovalProxyCallDoesNotClearStorageGuard() public {
-        _assertNestedCallDoesNotClearGuard(address(new RelayRouter_NonTstore()));
+    function test_nestedApprovalProxyCallRevertsWithStorageRouter() public {
+        _assertNestedCallReverts(address(new RelayRouter_NonTstore()));
     }
 
-    function _assertNestedCallDoesNotClearGuard(address router) private {
+    function _assertNestedCallReverts(address router) private {
         // Permit2 is unused on this path but must be non-zero.
         RelayApprovalProxy approvalProxy =
             new RelayApprovalProxy(address(this), router, makeAddr("permit2"));
@@ -94,14 +95,15 @@ contract ReentrancyGuardMsgSenderVIG084Test is Test {
         uint256[] memory amounts = new uint256[](0);
         vm.deal(address(this), 2 ether);
 
+        vm.expectRevert(RelayApprovalProxyBase.Reentrancy.selector);
         approvalProxy.transferAndMulticall{value: 2 ether}(tokens, amounts, calls, refundTo, address(0), "");
 
         assertFalse(unrelatedCaller.cleanupSucceeded(), "nested call cleared the outer reentrancy guard");
         assertEq(attemptedRecipient.balance, 0);
-        assertEq(refundTo.balance, 2 ether);
         assertEq(router.balance, 0);
 
-        // The outermost frame must still clear the guard on normal exit.
+        // The proxy and the router guards are clear after the revert.
+        approvalProxy.transferAndMulticall(tokens, amounts, new Call3Value[](0), refundTo, address(0), "");
         vm.deal(router, 1 ether);
         vm.prank(attemptedRecipient);
         IVIG084Router(router).cleanupNative(0, attemptedRecipient, bytes(""));
