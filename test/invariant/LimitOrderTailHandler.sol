@@ -2057,6 +2057,7 @@ contract TailHandler is TailTyped {
     function _freshFill(Fill memory f, address caller) internal returns (bytes memory) {
         address user = _user(f.userIdx);
         address token = _freshToken(f);
+        if (token == address(0)) return "";
         ISignatureTransfer.PermitBatchTransferFrom memory permit;
         permit.permitted = new ISignatureTransfer.TokenPermissions[](1);
         permit.permitted[0] = ISignatureTransfer.TokenPermissions(token, 1);
@@ -2074,7 +2075,8 @@ contract TailHandler is TailTyped {
     }
 
     /// @dev A permitted token that transfers exactly and that the fill does not use, else one that is not its tail
-    /// token (on the fork, with two tokens)
+    /// token (on the fork, with two tokens), else zero: on the fork a two-token permit with a WETH tail uses both
+    /// tokens, and the fill gets no fresh fill
     function _freshToken(Fill memory f) internal view returns (address fallbackToken) {
         for (uint256 i; i < tokensIn.length; ++i) {
             address t = tokensIn[i];
@@ -2086,7 +2088,6 @@ contract TailHandler is TailTyped {
             if (t != f.tokenIn) return t;
             fallbackToken = t;
         }
-        require(fallbackToken != address(0), "no token for a fresh fill");
     }
 
     function _freshSlot(address caller) internal pure returns (bytes32) {

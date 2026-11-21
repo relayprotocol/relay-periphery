@@ -27,6 +27,9 @@ abstract contract TailInvariants is Test {
     // Action.second: a tail permit with two tokens, or with none
     uint8 internal constant TWO_TOKENS = 6;
     uint8 internal constant NO_TOKEN = 7;
+    // attempts: only the fill with a fresh permit; extras: the malicious relayer's callback
+    uint8 internal constant FRESH_FILL = 64;
+    uint8 internal constant EVIL_CALLBACK = 128;
 
     TailHandler internal handler;
 
@@ -182,9 +185,6 @@ contract LimitOrderTailInvariantTest is TailInvariants {
     uint8 internal constant RF_THIRD = 4;
     uint8 internal constant RF_PROXY = 6;
     uint8 internal constant RF_ROUTER = 7;
-    // attempts: only the fill with a fresh permit; extras: the malicious relayer's callback
-    uint8 internal constant FRESH_FILL = 64;
-    uint8 internal constant EVIL_CALLBACK = 128;
 
     function setUp() public {
         new TailEtcher().etch();
@@ -630,6 +630,13 @@ contract LimitOrderTailForkInvariantTest is TailInvariants {
         shape.second = TWO_TOKENS;
         _act(shape);
         shape.second = NO_TOKEN;
+        _act(shape);
+        // WETH + USDC with a WETH tail leaves no token for the malicious relayer's fresh fill: the action still
+        // reaches the proxy, which refuses it
+        shape.second = TWO_TOKENS;
+        shape.tokenOut = 1;
+        shape.attempts = FRESH_FILL;
+        shape.extras = EVIL_CALLBACK;
         _act(shape);
         for (uint8 m = 1; m < 6; ++m) {
             Action memory a = _base();
