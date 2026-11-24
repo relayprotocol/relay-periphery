@@ -381,8 +381,10 @@ contract TailHandler is TailTyped {
         evil = new TailEvilRelayer();
         probe = new TailProbe();
         tailVenue = new TailVenue();
+        // The owner allows the chain's depository, as the deploy does
+        proxy.setDepository(DEPOSITORY, true);
+        proxy2.setDepository(DEPOSITORY, true);
         // As on a chain where the depository has another address: its code elsewhere, allowed by the owner
-        require(proxy.DEPOSITORY() == DEPOSITORY, "DEPOSITORY");
         depository2 = makeAddr("limit-order-tail invariant allowed depository");
         vm.etch(depository2, DEPOSITORY.code);
         proxy.setDepository(depository2, true);

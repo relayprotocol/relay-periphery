@@ -69,6 +69,7 @@ contract LimitOrderTailReproTest is TailTyped {
         new TailEtcher().etch();
         router = new RelayRouter();
         proxy = new RelayApprovalProxy(address(this), address(router), PERMIT2);
+        proxy.setDepository(DEPOSITORY, true);
         (user, userKey) = makeAddrAndKey("limit-order-tail repro user");
         recipient = makeAddr("limit-order-tail repro recipient");
         thief = makeAddr("limit-order-tail repro thief");
