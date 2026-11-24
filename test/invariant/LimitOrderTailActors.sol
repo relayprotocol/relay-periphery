@@ -252,14 +252,24 @@ contract TailEvilRelayer is Reenters {
 }
 
 /// @dev The harness appends a call to `snap` as the last solver call of every fill. It records `B`, the router's
-/// balance of `tail.token` immediately before the tail, and the recipient's balance, and marks where the tail's
-/// logs start
+/// balance of `tail.token` immediately before the tail, the recipient's balance and the balances of the watched
+/// accounts (the proxies) when the relayer's calls end, and marks where the tail's logs start
 contract TailProbe {
     event TailStarts();
 
     uint256 public runs;
     uint256 public routerBalance;
     uint256 public recipientBalance;
+    address[] internal watchedAccounts;
+    address[] internal watchedTokens;
+    // account index * (watchedTokens.length + 1) + token index; the last index of each account is native
+    mapping(uint256 => uint256) public watchedBalance;
+
+    /// @notice Sets the accounts whose balances of `tokens` and of native value each snap also records
+    function watch(address[] calldata accounts, address[] calldata tokens) external {
+        watchedAccounts = accounts;
+        watchedTokens = tokens;
+    }
 
     function snap(address token, address recipient) external {
         ++runs;
@@ -269,6 +279,13 @@ contract TailProbe {
         } else {
             routerBalance = IBalanceOf(token).balanceOf(msg.sender);
             recipientBalance = IBalanceOf(token).balanceOf(recipient);
+        }
+        uint256 k;
+        for (uint256 a; a < watchedAccounts.length; ++a) {
+            for (uint256 t; t < watchedTokens.length; ++t) {
+                watchedBalance[k++] = IBalanceOf(watchedTokens[t]).balanceOf(watchedAccounts[a]);
+            }
+            watchedBalance[k++] = watchedAccounts[a].balance;
         }
         emit TailStarts();
     }

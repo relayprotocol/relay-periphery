@@ -15,13 +15,16 @@ import {TailHandler, Action} from "./LimitOrderTailHandler.sol";
 // venue, at fewer runs.
 //
 // The handler models the tail's rules on its fields: a tail permit holds exactly one token (invariant_oneTokenRule),
-// and a tail with an orderId deposits only into DEPOSITORY or a depository the proxy's owner allowed (#83,
-// invariant_depositoryRule). Any other tail reverts with InvalidTail and is checked under T1.3. The permitted token
-// the venue does not take is refunded to refundTo (invariant_refundOfTheLeftoverInput).
+// a tail's refundTo is not the router or the proxy (invariant_refundToRule), and a tail with an orderId deposits only
+// into a depository the proxy's owner allowed (#83, invariant_depositoryRule). Any other tail reverts with
+// InvalidTail and is checked under T1.3. The permitted token the venue does not take is refunded to refundTo
+// (invariant_refundOfTheLeftoverInput).
 //
-// Every invariant failure on the current contracts has a reproduction with fixed inputs in
-// LimitOrderTailReproTest.sol, and the behaviour T2 leaves to the solver (fee-on-transfer and rounding tokens) is
-// pinned by its test_knownLimit_* tests.
+// Every invariant holds on the current contracts, and test_reach and test_forkReach assert that their fixed cases
+// make no violation. LimitOrderTailReproTest.sol has, with fixed inputs, the regression tests of the tails the rules
+// refuse and of the accepted outcomes. Its test_knownLimit_* tests pin what T2 leaves to the solver (the
+// fee-on-transfer and rounding tokens), and its test_onlyTheTailsOwnDepositCounts_* tests pin that T2.2 and T2.3
+// count only the tail's own deposit.
 
 abstract contract TailInvariants is Test {
     // Action.second: a tail permit with two tokens, or with none
@@ -82,6 +85,12 @@ abstract contract TailInvariants is Test {
         assertEq(handler.violations("one-token rule"), 0, handler.firstViolation("one-token rule"));
     }
 
+    /// @dev A tail whose refundTo is the router or the proxy reverts with InvalidTail() before any call reaches
+    /// Permit2 or the router
+    function invariant_refundToRule() public view {
+        assertEq(handler.violations("refundTo rule"), 0, handler.firstViolation("refundTo rule"));
+    }
+
     /// @dev After a successful tail fill with refundTo the user or a third party, refundTo gets the permitted token
     /// the venue did not take, and the router keeps none of it
     function invariant_refundOfTheLeftoverInput() public view {
@@ -97,13 +106,14 @@ abstract contract TailInvariants is Test {
     /// @dev Logs at the end of each run how many checks of each kind the run made, so a run that never reached a
     /// successful fill shows as such
     function afterInvariant() public {
-        string[10] memory keys = [
+        string[11] memory keys = [
             "T1.1 a user's balance decreased",
             "T1.2 checked a successful fill",
             "T1.3 checked a call that reverted",
             "T1.3 checked a tail refused with InvalidTail",
             "one-token rule: refused with InvalidTail, 0 permitted tokens",
             "one-token rule: refused with InvalidTail, 2 permitted tokens",
+            "refundTo rule: refused with InvalidTail",
             "T2 checked a successful tail fill",
             "T2.2 checked a fill with an orderId",
             "T2.3 checked a fill without an orderId",
@@ -127,8 +137,8 @@ abstract contract TailInvariants is Test {
         a.amount = 396; // 1 + 396 / 4 = 100
     }
 
-    function _logParts() internal {
-        string[11] memory parts = [
+    function _parts() internal pure returns (string[12] memory) {
+        return [
             "T1.1",
             "T1.2",
             "T1.3",
@@ -138,9 +148,15 @@ abstract contract TailInvariants is Test {
             "T2.4",
             "depository rule",
             "one-token rule",
+            "refundTo rule",
             "refund",
             "harness"
         ];
+    }
+
+    /// @dev Logs the violations of each part, with the first of each class
+    function _logParts() internal {
+        string[12] memory parts = _parts();
         for (uint256 p; p < parts.length; ++p) {
             string[] memory list = handler.classesOf(parts[p]);
             emit log_named_uint(string.concat(parts[p], " violations"), handler.violations(parts[p]));
@@ -156,6 +172,14 @@ abstract contract TailInvariants is Test {
                         handler.firstOfClass(parts[p], list[i])
                     ));
             }
+        }
+    }
+
+    /// @dev The fixed cases make no violation of any part
+    function _assertNoViolations() internal view {
+        string[12] memory parts = _parts();
+        for (uint256 p; p < parts.length; ++p) {
+            assertEq(handler.violations(parts[p]), 0, string.concat(parts[p], ": ", handler.firstViolation(parts[p])));
         }
     }
 
@@ -337,7 +361,7 @@ contract LimitOrderTailInvariantTest is TailInvariants {
             a.minMode = 2;
             _act(a);
         }
-        // T1.2 and refunds: every refundTo, with input left over
+        // T1.2 and refunds: every refundTo, with input left over; the router and the proxy are refused
         uint8[4] memory refunds = [0, RF_THIRD, RF_PROXY, RF_ROUTER];
         for (uint256 i; i < refunds.length; ++i) {
             Action memory a = _base();
@@ -348,7 +372,20 @@ contract LimitOrderTailInvariantTest is TailInvariants {
             a.aux = 9;
             _act(a);
         }
-        // griefers: dust on the router, deposits under an order id, a cancel, the thief sweeping
+        // T1.2: a RelayerWitness order whose refundTo the user signed as the proxy gets the router's native dust
+        {
+            Action memory dust = _base();
+            dust.kind = 7;
+            dust.mutation = 1;
+            dust.aux = 1;
+            _act(dust);
+            Action memory a = _base();
+            a.kind = 4;
+            a.mutation = 0;
+            a.refundTo = RF_PROXY;
+            _act(a);
+        }
+        // outsiders: dust on the router, deposits under an order id, a cancel, the thief sweeping
         for (uint8 sub; sub < 5; ++sub) {
             Action memory a = _base();
             a.kind = 7;
@@ -512,14 +549,16 @@ contract LimitOrderTailInvariantTest is TailInvariants {
         for (uint256 i; i < extras.length; ++i) {
             _reached(string.concat("T2 success, the relayer ", extras[i]));
         }
+        _reached("T1.2 accepted: the relayer's calls sent value to the proxy");
+        _reached("T1.2 accepted: a RelayerWitness order refunded to the proxy that the user signed");
         _reached("T2 success, the hook target made its attempts");
         _reached("T2 success, the recipient that calls out made its attempts");
         _reached("T2 success, the venue made its attempts");
         _reached("T2 success, the malicious relayer made its attempts");
-        string[4] memory refunds = ["the EOA user", "the third party", "the proxy", "the router"];
-        for (uint256 i; i < refunds.length; ++i) {
-            _reached(string.concat("T2 success, refundTo ", refunds[i]));
-        }
+        _reached("T2 success, refundTo the EOA user");
+        _reached("T2 success, refundTo the third party");
+        _reached("refundTo rule: refused with InvalidTail, refundTo the proxy");
+        _reached("refundTo rule: refused with InvalidTail, refundTo the router");
         _reached("refund checked, refundTo the EOA user");
         _reached("refund checked, refundTo the third party");
         _reached("refund checked, input left over");
@@ -546,12 +585,13 @@ contract LimitOrderTailInvariantTest is TailInvariants {
             bool succeeds = i == 2 || i == 3 || i == 6 || i == 7;
             _reached(string.concat("attack ", attacks[i], succeeds ? ", succeeded" : ", reverted"));
         }
-        _reached("griefer dust, token, succeeded");
-        _reached("griefer dust, native, succeeded");
-        _reached("griefer deposit under an order id, succeeded");
+        _reached("outsider dust, token, succeeded");
+        _reached("outsider dust, native, succeeded");
+        _reached("outsider deposit under an order id, succeeded");
         _reached("user cancels, succeeded");
         _reached("thief sweeps, succeeded");
         _reached("the thief took residue from the router");
+        _assertNoViolations();
     }
 }
 
@@ -663,5 +703,6 @@ contract LimitOrderTailForkInvariantTest is TailInvariants {
         _reached("refund checked, input left over");
         _reached("the recipient that calls out submitted a fill with a fresh permit during a fill, reverted");
         _reached("T1.3 checked a call that reverted");
+        _assertNoViolations();
     }
 }

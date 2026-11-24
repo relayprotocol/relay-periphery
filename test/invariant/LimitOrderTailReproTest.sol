@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import {Vm} from "forge-std/Vm.sol";
+import {Vm, VmSafe} from "forge-std/Vm.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {RelayRouter} from "../../src/RelayRouter.sol";
 import {RelayRouterBase} from "../../src/RelayRouterBase.sol";
@@ -23,12 +23,15 @@ import {
     HOOK
 } from "./LimitOrderTailActors.sol";
 
-/// @notice One test per class of invariant failure the suite finds on the current contracts, with fixed inputs and
-///         the numbers in its message. These tests assert the invariant, so they fail until the contract (or the
-///         invariant) changes. The test_fixedBy83_* tests were such reproductions on #82; #83 (a tail with an
-///         orderId deposits only into a known depository) fixed them, and they now assert the refusal. The test_knownLimit_* tests assert today's behaviour for the tokens T2 leaves to the
-///         solver (fee on transfer, rounding down); they pass now and fail when the contract starts to measure at
-///         the recipient.
+/// @notice Tests with fixed inputs, with the numbers in their messages, for cases the invariant suite checks. The
+///         test_fixedBy83_* tests were reproductions on #82 of failures that #83 (a tail with an orderId deposits
+///         only into a known depository) fixed; they assert the refusal, as test_refundToRule_* does for a refundTo
+///         that the proxy refuses. The test_T1_2_* tests assert outcomes that T1.2 accepts. The test_knownLimit_*
+///         tests assert today's behaviour for what T2 leaves to the solver, which signs tails only in its core
+///         deposit currencies: fee-on-transfer and rounding tokens (these tests fail when the contract starts to
+///         measure at the recipient). The test_onlyTheTailsOwnDepositCounts_* tests assert that T2.2 and T2.3 count
+///         only the tail's own deposit when other code (a token's transfer hook, a same-chain recipient's own code)
+///         also deposits during the fill.
 /// @dev Same world as the invariant suite: Relay's Permit2, depository and multicaller from their Base runtime code,
 ///      chain id 8453, a fresh user key, and the multicaller's owner submitting through `aggregate`.
 contract LimitOrderTailReproTest is TailTyped {
@@ -60,6 +63,7 @@ contract LimitOrderTailReproTest is TailTyped {
         uint256 B;
         uint256 recipientDelta;
         uint256 depositLogs;
+        uint256 exactLogs; // the tail's deposit log: from the recipient, for the user, of B, under the orderId
         address logEmitter;
         uint256 logAmount;
         Vm.AccountAccess[] acc; // the submission's calls, those of reverted frames included
@@ -104,20 +108,22 @@ contract LimitOrderTailReproTest is TailTyped {
     ///         other 50 stayed on the router for anyone. #83 refuses the tail before anything moves
     function test_fixedBy83_halfPullingRecipientWithAnOrderIdIsRefused() public {
         _assertRefusedWithInvalidTail(
-            _swap(100, address(out), 100), _tail(address(out), 50, address(halfPull), ORDER_ID)
+            _swap(100, address(out), 100), _tail(address(out), 50, address(halfPull), ORDER_ID), user
         );
     }
 
     /// @notice Was test_T2_2_nativeDepositToAnAddressWithoutCode: on #82 the fill succeeded, the address got 100 wei
     ///         and there was no deposit log
     function test_fixedBy83_nativeTailWithAnOrderIdToAnAddressWithoutCodeIsRefused() public {
-        _assertRefusedWithInvalidTail(_swap(100, address(0), 100), _tail(address(0), 100, noCode, ORDER_ID));
+        _assertRefusedWithInvalidTail(_swap(100, address(0), 100), _tail(address(0), 100, noCode, ORDER_ID), user);
     }
 
     /// @notice Was test_T2_2_nativeDepositToAContractThatIsNotADepository: on #82 its fallback kept 100 wei and
     ///         the depositNative calldata, and nothing was logged
     function test_fixedBy83_nativeTailWithAnOrderIdToAContractThatIsNotADepositoryIsRefused() public {
-        _assertRefusedWithInvalidTail(_swap(100, address(0), 100), _tail(address(0), 100, address(callout), ORDER_ID));
+        _assertRefusedWithInvalidTail(
+            _swap(100, address(0), 100), _tail(address(0), 100, address(callout), ORDER_ID), user
+        );
     }
 
     /// @notice On #82 a recipient that is not a depository kept 100 wei and called the depository during the
@@ -127,116 +133,109 @@ contract LimitOrderTailReproTest is TailTyped {
         attempts[0] = Attempt(DEPOSITORY, abi.encodeWithSignature("depositNative(address,bytes32)", user, ORDER_ID));
         _setAttempts(attempts);
         Outcome memory o = _assertRefusedWithInvalidTail(
-            _swap(100, address(0), 100), _tail(address(0), 100, address(callout), ORDER_ID)
+            _swap(100, address(0), 100), _tail(address(0), 100, address(callout), ORDER_ID), user
         );
         assertFalse(_called(o.acc, address(callout)), "the recipient never ran");
     }
 
-    // ================================================================ reproductions: these fail on the current contracts
+    // ================================================================ the refundTo rule
 
-    /// @notice T2.2: a tail token whose transferFrom calls out can add a depository log of its own to the tail:
-    ///         the depository pulls the token, and the hook calls depositNative(user, orderId)
-    function test_T2_2_hookTokenAddsASecondDepositoryLog() public {
-        Attempt[] memory attempts = new Attempt[](1);
-        attempts[0] = Attempt(DEPOSITORY, abi.encodeWithSignature("depositNative(address,bytes32)", user, ORDER_ID));
-        _setAttempts(attempts);
-        Outcome memory o =
-            _fill(100, _swap(100, address(hook), 100), _tail(address(hook), 100, DEPOSITORY, ORDER_ID), user);
-        assertTrue(o.ok, "the fill should succeed");
-        assertEq(o.recipientDelta, 100);
-        assertEq(
-            o.depositLogs,
-            1,
-            string.concat(
-                "T2.2: the tail made ",
-                vm.toString(o.depositLogs),
-                " depository logs, B 100, minAmount 100, fill succeeded"
-            )
+    /// @notice A tail whose refundTo is the proxy is refused before anything moves
+    function test_refundToRule_aTailWithRefundToTheProxyIsRefused() public {
+        _assertRefusedWithInvalidTail(
+            _swap(60, address(out), 60), _tail(address(out), 60, recipient, bytes32(0)), address(proxy)
         );
+        assertEq(std.balanceOf(address(proxy)), 0, "the proxy got no STD");
+        assertEq(out.balanceOf(address(proxy)), 0, "the proxy got no OUT");
     }
 
-    /// @notice T2.3: a same-chain native tail to a recipient that calls out: the recipient calls depositNative when
-    ///         it gets the value, and the tail of an order without an orderId has a depository log
-    function test_T2_3_recipientDepositsDuringATailWithoutOrderId() public {
-        Attempt[] memory attempts = new Attempt[](1);
-        attempts[0] = Attempt(DEPOSITORY, abi.encodeWithSignature("depositNative(address,bytes32)", user, ORDER_ID));
-        _setAttempts(attempts);
-        Outcome memory o =
-            _fill(100, _swap(100, address(0), 100), _tail(address(0), 100, address(callout), bytes32(0)), user);
-        assertTrue(o.ok, "the fill should succeed");
-        assertEq(
-            o.depositLogs,
-            0,
-            string.concat(
-                "T2.3: the tail made ", vm.toString(o.depositLogs), " depository logs, orderId 0, B 100, fill succeeded"
-            )
-        );
-    }
+    // ================================================================ outcomes T1.2 accepts: what the relayer's own
+    // calls send to the proxy is above the signed minimum, and the relayer may keep it
 
-    /// @notice T1.2: a solver call sends router-held tail.token to the proxy in a fill that succeeds
-    function test_T1_2_aSolverCallSendsValueToTheProxy() public {
+    /// @notice T1.2: a solver call sends 1 OUT of the router's to the proxy. The fill succeeds, the user pays exactly
+    ///         the signed 100 STD and the recipient gets B
+    function test_T1_2_aSolverCallMaySendTokensToTheProxy() public {
         Call3Value[] memory calls = new Call3Value[](3);
         Call3Value[] memory swap = _swap(100, address(out), 100);
         calls[0] = swap[0];
         calls[1] = swap[1];
         calls[2] =
             Call3Value(address(out), false, 0, abi.encodeWithSignature("transfer(address,uint256)", address(proxy), 1));
+        uint256 userStd = std.balanceOf(user);
         Outcome memory o = _fill(100, calls, _tail(address(out), 99, recipient, bytes32(0)), user);
-        assertTrue(o.ok, "the fill should succeed");
-        assertEq(
-            out.balanceOf(address(proxy)),
-            0,
-            string.concat(
-                "T1.2: the proxy's OUT went from 0 to ",
-                vm.toString(out.balanceOf(address(proxy))),
-                " in a successful fill (recipient +",
-                vm.toString(o.recipientDelta),
-                ", minAmount 99)"
-            )
-        );
+        assertTrue(o.ok, "the fill succeeds");
+        assertEq(userStd - std.balanceOf(user), 100, "the user pays exactly the signed 100 STD");
+        assertEq(o.B, 99, "B");
+        assertEq(o.recipientDelta, 99, "the recipient gets B");
+        assertEq(out.balanceOf(address(proxy)), 1, "the proxy holds the 1 OUT that the solver call sent it");
+        assertEq(std.balanceOf(address(proxy)), 0, "the proxy holds no STD");
     }
 
-    /// @notice T1.2: a solver call sends router-held native value to the proxy, whose receive() accepts it while
-    ///         the proxy's own guarded call runs
-    function test_T1_2_aSolverCallSendsNativeToTheProxy() public {
+    /// @notice T1.2: a solver call sends 1 wei of the router's native value to the proxy. The fill succeeds, the user
+    ///         pays exactly the signed 100 STD and the recipient gets B
+    function test_T1_2_aSolverCallMaySendNativeToTheProxy() public {
         Call3Value[] memory calls = new Call3Value[](3);
         Call3Value[] memory swap = _swap(100, address(0), 100);
         calls[0] = swap[0];
         calls[1] = swap[1];
         calls[2] = Call3Value(address(proxy), false, 1, "");
+        uint256 userStd = std.balanceOf(user);
         Outcome memory o = _fill(100, calls, _tail(address(0), 99, recipient, bytes32(0)), user);
-        assertTrue(o.ok, "the fill should succeed");
-        assertEq(
-            address(proxy).balance,
-            0,
-            string.concat(
-                "T1.2: the proxy's native went from 0 to ",
-                vm.toString(address(proxy).balance),
-                " in a successful fill (recipient +",
-                vm.toString(o.recipientDelta),
-                " wei, minAmount 99)"
-            )
-        );
+        assertTrue(o.ok, "the fill succeeds");
+        assertEq(userStd - std.balanceOf(user), 100, "the user pays exactly the signed 100 STD");
+        assertEq(o.B, 99, "B");
+        assertEq(o.recipientDelta, 99, "the recipient gets B wei");
+        assertEq(address(proxy).balance, 1, "the proxy holds the 1 wei that the solver call sent it");
+        assertEq(std.balanceOf(address(proxy)), 0, "the proxy holds no STD");
     }
 
-    /// @notice T1.2: refundTo may be the proxy (the tail's recipient may not), and the input the venue did not take
-    ///         is refunded to it
-    function test_T1_2_refundToTheProxyKeepsTheLeftoverInput() public {
+    // ================================================================ known limits: what T2 leaves to the solver
+
+    /// @notice A tail token whose transferFrom calls out, deposited under an orderId: while the depository pulls
+    ///         the token, the token's hook target also deposits. The fill succeeds, and the tail's own deposit is
+    ///         one exact deposit, which is the only one T2.2 counts. The solver signs tails only in its core deposit
+    ///         currencies, which have no hook
+    function test_onlyTheTailsOwnDepositCounts_hookToken() public {
+        Attempt[] memory attempts = new Attempt[](1);
+        attempts[0] = Attempt(DEPOSITORY, abi.encodeWithSignature("depositNative(address,bytes32)", user, ORDER_ID));
+        _setAttempts(attempts);
         Outcome memory o =
-            _fill(100, _swap(60, address(out), 60), _tail(address(out), 60, recipient, bytes32(0)), address(proxy));
-        assertTrue(o.ok, "the fill should succeed");
-        assertEq(
-            std.balanceOf(address(proxy)),
-            0,
-            string.concat(
-                "T1.2: refundTo is the proxy; the proxy's STD went from 0 to ",
-                vm.toString(std.balanceOf(address(proxy))),
-                " in a successful fill (the venue took 60 of 100)"
-            )
+            _fill(100, _swap(100, address(hook), 100), _tail(address(hook), 100, DEPOSITORY, ORDER_ID), user);
+        assertTrue(o.ok, "the fill succeeds");
+        assertEq(o.B, 100, "B");
+        assertEq(o.recipientDelta, 100, "the depository gets B");
+        assertEq(_depositCallsBy(o.acc, address(router)), 1, "the tail makes one depository call");
+        assertTrue(
+            _calledWith(
+                o.acc,
+                address(router),
+                DEPOSITORY,
+                0,
+                abi.encodeWithSignature("depositErc20(address,address,bytes32)", user, address(hook), ORDER_ID)
+            ),
+            "the tail's call is depositErc20(user, tail.token, orderId)"
         );
+        assertEq(o.exactLogs, 1, "the depository logs the tail's deposit of B once");
+        assertEq(_depositCallsBy(o.acc, address(hookTarget)), 1, "the other depository call is the hook target's");
+        assertEq(o.depositLogs, 2, "T2.2 counts only the tail's deposit log; the second log is the hook target's");
     }
 
-    // ================================================================ known limits: these pass on the current contracts
+    /// @notice A same-chain native tail to a recipient that calls out: when it gets the value, the recipient's own
+    ///         code deposits. The fill succeeds, the recipient gets B, and the tail makes no deposit, which is what
+    ///         T2.3 counts
+    function test_onlyTheTailsOwnDepositCounts_recipientWithoutOrderId() public {
+        Attempt[] memory attempts = new Attempt[](1);
+        attempts[0] = Attempt(DEPOSITORY, abi.encodeWithSignature("depositNative(address,bytes32)", user, ORDER_ID));
+        _setAttempts(attempts);
+        Outcome memory o =
+            _fill(100, _swap(100, address(0), 100), _tail(address(0), 100, address(callout), bytes32(0)), user);
+        assertTrue(o.ok, "the fill succeeds");
+        assertEq(o.B, 100, "B");
+        assertEq(o.recipientDelta, 100, "the recipient gets B wei");
+        assertEq(_depositCallsBy(o.acc, address(router)), 0, "the tail makes no depository call");
+        assertEq(_depositCallsBy(o.acc, address(callout)), 1, "the depository call is the recipient's");
+        assertEq(o.depositLogs, 1, "T2.3 counts no deposit log; this one is the recipient's");
+    }
 
     /// @notice A 1% fee token as tail.token, paid to an address: B 100, signed minimum 100, the recipient gets 99
     ///         and the fill succeeds. The solver only signs tails in its fee-free deposit currencies
@@ -283,12 +282,13 @@ contract LimitOrderTailReproTest is TailTyped {
 
     // ================================================================ helpers
 
-    /// @dev Signs and submits a fill of 100 STD with `calls` and `tail` like _fill, and asserts #83's refusal:
-    ///      InvalidTail(), no call reached Permit2 or the router (so no solver call ran), no balance moved and the
-    ///      nonce stays unused
+    /// @dev Signs and submits a fill of 100 STD with `calls`, `tail` and `refundTo` like _fill, and asserts that the
+    ///      proxy refuses it: InvalidTail(), no call reached Permit2 or the router (so no solver call ran), no
+    ///      balance moved and the nonce stays unused
     function _assertRefusedWithInvalidTail(
         Call3Value[] memory calls,
-        RelayApprovalProxyBase.SweepWithMinimum memory tail
+        RelayApprovalProxyBase.SweepWithMinimum memory tail,
+        address refundTo
     ) internal returns (Outcome memory o) {
         uint256 usedNonce = nonce;
         uint256 userStd = std.balanceOf(user);
@@ -297,7 +297,7 @@ contract LimitOrderTailReproTest is TailTyped {
             tail.token == address(0) ? tail.recipient.balance : TailToken(tail.token).balanceOf(tail.recipient);
         uint256 depositoryBefore =
             tail.token == address(0) ? DEPOSITORY.balance : TailToken(tail.token).balanceOf(DEPOSITORY);
-        o = _fill(100, calls, tail, user);
+        o = _fill(100, calls, tail, refundTo);
         assertFalse(o.ok, "the fill must revert");
         assertEq(o.ret, abi.encodeWithSelector(RelayApprovalProxyBase.InvalidTail.selector), "InvalidTail()");
         assertFalse(_called(o.acc, address(router)), "no call reached the router, so no solver call ran");
@@ -320,6 +320,40 @@ contract LimitOrderTailReproTest is TailTyped {
             0,
             "the nonce stays unused"
         );
+    }
+
+    /// @dev The successful calls with a deposit selector that `caller` makes
+    function _depositCallsBy(Vm.AccountAccess[] memory acc, address caller) internal pure returns (uint256 n) {
+        for (uint256 i; i < acc.length; ++i) {
+            Vm.AccountAccess memory x = acc[i];
+            if (x.kind != VmSafe.AccountAccessKind.Call || x.reverted || x.accessor != caller || x.data.length < 4) {
+                continue;
+            }
+            bytes4 selector = bytes4(x.data);
+            if (
+                selector == bytes4(keccak256("depositNative(address,bytes32)"))
+                    || selector == bytes4(keccak256("depositErc20(address,address,bytes32)"))
+                    || selector == bytes4(keccak256("depositErc20(address,address,uint256,bytes32)"))
+            ) ++n;
+        }
+    }
+
+    /// @dev Whether `caller` made a successful call to `target` with `value` and `data`
+    function _calledWith(
+        Vm.AccountAccess[] memory acc,
+        address caller,
+        address target,
+        uint256 value,
+        bytes memory data
+    ) internal pure returns (bool) {
+        for (uint256 i; i < acc.length; ++i) {
+            Vm.AccountAccess memory x = acc[i];
+            if (
+                x.kind == VmSafe.AccountAccessKind.Call && !x.reverted && x.accessor == caller && x.account == target
+                    && x.value == value && keccak256(x.data) == keccak256(data)
+            ) return true;
+        }
+        return false;
     }
 
     /// @notice What the hook target and the recipient that calls out call when they call out
@@ -393,6 +427,11 @@ contract LimitOrderTailReproTest is TailTyped {
             tail.token == address(0) ? tail.recipient.balance : TailToken(tail.token).balanceOf(tail.recipient);
         o.recipientDelta = afterwards - before;
         bytes32 tailHash = keccak256(_tailCalldata(user, tail));
+        bytes32 exactLog = keccak256(
+            tail.token == address(0)
+                ? abi.encode(user, o.B, tail.orderId)
+                : abi.encode(user, tail.token, o.B, tail.orderId)
+        );
         bool inTail;
         for (uint256 i; i < logs.length; ++i) {
             if (logs[i].topics.length == 0) continue;
@@ -407,6 +446,11 @@ contract LimitOrderTailReproTest is TailTyped {
                     && (logs[i].emitter == DEPOSITORY || logs[i].emitter == tail.recipient)
             ) {
                 ++o.depositLogs;
+                if (
+                    logs[i].emitter == tail.recipient
+                        && topic == (tail.token == address(0) ? NATIVE_DEPOSIT : ERC20_DEPOSIT)
+                        && keccak256(logs[i].data) == exactLog
+                ) ++o.exactLogs;
                 o.logEmitter = logs[i].emitter;
                 if (topic == ERC20_DEPOSIT) {
                     (,, o.logAmount,) = abi.decode(logs[i].data, (address, address, uint256, bytes32));

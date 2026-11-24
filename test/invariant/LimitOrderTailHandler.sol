@@ -40,7 +40,10 @@ import {
 //      for all proxy and router functions.
 //   2. A successful fill moves exactly the signed amount of each permitted token from the user to the router in one
 //      transfer. It sets exactly one bit of nonceBitmap[user]. It changes no other balance or allowance of the user.
-//      The proxy's balances do not change.
+//      The proxy keeps none of the user's funds: its balances do not fall; in a tail fill they do not change after
+//      the relayer's calls; in a permit2TransferAndMulticall fill they do not change, unless the user signed the
+//      proxy as refundTo. Value that the relayer's own calls send to the proxy is above the signed minimum, and the
+//      relayer may keep it.
 //   3. After a call that reverts, the ledger, all allowances, the nonce word and the three slots (proxy lock, router
 //      CONTEXT_SLOT, router RECIPIENT_SLOT) are the same as before.
 //   4. The handler computes the digest with vm.eip712HashTypedData on the JSON typed data (TailTyped).
@@ -48,19 +51,34 @@ import {
 // T2. The recipient gets at least minAmount, measured at the recipient. A cross-chain fill makes exactly one exact
 // deposit. Let B be the router's balance of tail.token immediately before the tail. On success:
 //   1. B >= minAmount. ERC-20: the recipient's balance increases by exactly B. Native: the router sends B in one call.
-//   2. orderId != 0: the recipient has code. The tail makes exactly one depository log, RelayErc20Deposit(user,
-//      tail.token, B, orderId) or RelayNativeDeposit(user, B, orderId). The depository's balance increases by B.
-//   3. orderId == 0: the tail makes no depository log.
+//   2. orderId != 0: the recipient has code. The tail makes exactly one exact deposit: in the tail frame the router
+//      makes exactly one depository call, to the recipient, depositErc20(user, tail.token, orderId) or
+//      depositNative(user, orderId) with value B, and the recipient logs RelayErc20Deposit(user, tail.token, B,
+//      orderId) or RelayNativeDeposit(user, B, orderId) once in the tail. The depository's balance increases by B.
+//   3. orderId == 0: in the tail frame the router makes no depository call, so the tail makes no deposit.
 //   4. The last SolverCallExecuted of the fill is (router, keccak256(tailCalldata), 0), where the test builds
 //      tailCalldata itself from the signed fields. returnData.length == solverCalls.length + 1.
+//   In 2 and 3, a deposit and its log count only when the tail call itself makes them: the router's call to the
+//   recipient in the tail frame. What other code makes during the fill does not count, for example the same-chain
+//   recipient's own code or a token's transfer hook.
 //
 // How the handler measures:
 // - B: the handler appends a call to TailProbe as the last solver call. It records the router's balance of
-//   tail.token and the recipient's balance, and emits TailStarts. Nothing runs between it and the tail.
-// - The tail's logs: those after TailStarts up to the tail's own SolverCallExecuted. A "depository log" is a
-//   RelayErc20Deposit or RelayNativeDeposit emitted by Relay's depository or by tail.recipient (a recipient that
-//   is a depository look-alike). Recorded logs include those of reverted frames, so the handler also counts the
-//   successful deposit calls inside the tail frame from the state diff and flags a harness error if they disagree.
+//   tail.token, the recipient's balance and the proxies' balances, and emits TailStarts. Nothing runs between it
+//   and the tail.
+// - The proxies' balances (T1.2): in a tail fill, a proxy's balance after the fill must equal what the probe
+//   recorded at the end of the relayer's calls, and not be below its balance before the fill. In a
+//   permit2TransferAndMulticall fill it must equal its balance before, or, for a proxy that the user signed as
+//   refundTo, not be below it.
+// - The tail frame: the router's last call to itself directly inside the proxy's call to the router's multicall,
+//   found in the state diff by its place, not by its calldata. The tail's logs: those after TailStarts up to the
+//   router's last SolverCallExecuted, which is the tail's own.
+// - The tail's deposit (T2.2, T2.3): a call with a deposit selector that the router makes directly in the tail
+//   frame. Calls that other code makes inside the frame are not the tail's. The tail's deposit log: a log of the
+//   recipient among the tail's logs equal to RelayErc20Deposit(user, tail.token, B, orderId) or
+//   RelayNativeDeposit(user, B, orderId). Recorded logs include those of reverted frames, so the handler also
+//   checks that the deposit logs of Relay's depository, the allowed depository and the half-pulling recipient in
+//   the tail match the successful deposit calls into them in the tail frame, and flags a harness error if not.
 // - A user's debit: a transferFrom (or transfer by the user) of a ledger token whose `from` is the user, in a frame
 //   that did not revert (state diff), or any net decrease of a balance. A refund to the user in the same fill does
 //   not hide a debit. T1.2 counts credits to the user (refundTo or recipient is the user) as not "moving" the user's
@@ -70,11 +88,13 @@ import {
 // - The one-token rule ("one-token rule"): a tail whose permit does not hold exactly one token reverts with
 //   InvalidTail(). The handler signs tail permits with no token and with two (Action.second).
 //   permit2TransferAndMulticall has no such rule and takes both.
-// - The depository rule (#83, "depository rule"): a tail with an orderId whose recipient is neither DEPOSITORY nor
-//   allowed by the spender proxy's owner (isDepository) reverts with InvalidTail(). The owner (the handler) allows
-//   one more contract with the depository's code, `depository2`, and nothing else.
-// - A tail that either rule refuses reverts before any call reaches Permit2 or the router, so before any solver
-//   call runs, and T1.3 is checked for it like for any other revert. No tail that both rules allow reverts with
+// - The refundTo rule ("refundTo rule"): a tail whose refundTo is the router or the spender proxy reverts with
+//   InvalidTail().
+// - The depository rule (#83, "depository rule"): a tail with an orderId whose recipient the spender proxy's owner
+//   did not allow (isDepository) reverts with InvalidTail(). The owner (the handler) allows DEPOSITORY, as the deploy
+//   does, and one more contract with the depository's code, `depository2`, and nothing else.
+// - A tail that a rule refuses reverts before any call reaches Permit2 or the router, so before any solver
+//   call runs, and T1.3 is checked for it like for any other revert. No tail that the rules allow reverts with
 //   InvalidTail(). The calls are read from the state diff, which keeps the calls of frames that reverted: a counter
 //   that a solver call raises would be undone by the revert itself.
 // - Refunds ("refund"): after a successful tail fill whose refundTo is the user or the third party, refundTo gets
@@ -88,14 +108,14 @@ import {
 //   and the malicious relayer each submit a tail fill of 1 unit of another token that the user signed for it as the
 //   relayer, with an unused nonce. Only the proxy's guard stops it; were it to succeed, the outer fill would move a
 //   second amount of the user's and set a second nonce bit, which T1.2 reports.
-// - A "depository log" in T2 is a deposit event from Relay's depository, from the allowed depository or from
-//   tail.recipient.
 // - T2's token set (tokensOut) leaves out the fee-on-transfer and the rounding tokens: the solver signs tails only in
 //   its fee-free deposit currencies. Both stay permitted tokens for T1. LimitOrderTailReproTest's test_knownLimit_*
-//   tests pin what the tail does with them today.
+//   tests pin what the tail does with them today. Its test_onlyTheTailsOwnDepositCounts_* tests pin that T2.2 and
+//   T2.3 count only the tail's own deposit when other code (a token's transfer hook, a same-chain recipient's own
+//   code) also deposits during the fill.
 
 uint256 constant KINDS = 8; // Action.kind % KINDS: 0-3 a new tail fill, 4 a permit2TransferAndMulticall fill,
-// 5 a replay of an earlier order, 6 an attacker calls a proxy, router or Permit2 function, 7 a griefer or the user
+// 5 a replay of an earlier order, 6 an attacker calls a proxy, router or Permit2 function, 7 an outsider or the user
 
 // Fill mutations: the field the submitter changes after the user signed. Action.mutation % 40, 20 and above: none
 uint256 constant M_NONE = 0;
@@ -213,6 +233,7 @@ struct Sub {
     bool refused; // a tail with an orderId to a recipient that is not a depository the spender knows
     bool ok;
     bytes ret;
+    uint256 probeRuns; // probe.runs() before the submission
 }
 
 struct Snap {
@@ -221,6 +242,19 @@ struct Snap {
     uint256[] p2;
     uint256[] words;
     uint256[] slots;
+}
+
+/// @dev What the state diff shows of the tail's frame: see _tailFrame
+struct TailFrame {
+    bool found;
+    uint256 valueCalls; // the calls with value that the router makes in the frame
+    address valueTo; // the last of them
+    uint256 value;
+    uint256 deposits; // the tail's own depository calls: the router's, directly in the frame
+    address depositTo; // the last of them
+    bytes depositData;
+    uint256 depositValue;
+    uint256 depositCalls; // the successful deposit calls that the harness matches against the deposit logs
 }
 
 struct Debit {
@@ -328,7 +362,7 @@ contract TailHandler is TailTyped {
     address public immutable eoaRecipient;
     address public immutable noCode;
     address public immutable thief;
-    address public immutable griefer;
+    address public immutable outsider;
     address public immutable thirdParty;
 
     address[] public tokensIn;
@@ -372,7 +406,7 @@ contract TailHandler is TailTyped {
         eoaRecipient = makeAddr("limit-order-tail invariant EOA recipient");
         noCode = address(uint160(uint256(keccak256("limit-order-tail invariant address without code"))));
         thief = makeAddr("limit-order-tail invariant thief");
-        griefer = makeAddr("limit-order-tail invariant griefer");
+        outsider = makeAddr("limit-order-tail invariant outsider");
         thirdParty = makeAddr("limit-order-tail invariant refund third party");
         hookTarget = new TailHookTarget();
         callout = new TailCalloutRecipient();
@@ -450,7 +484,7 @@ contract TailHandler is TailTyped {
             address(reverting),
             venue,
             thief,
-            griefer,
+            outsider,
             thirdParty,
             MULTICALLER,
             relayerEoa,
@@ -473,7 +507,7 @@ contract TailHandler is TailTyped {
             "the reverting recipient",
             "the venue",
             "the thief",
-            "the griefer",
+            "the outsider",
             "the third party",
             "the multicaller",
             "the other relayer",
@@ -486,6 +520,11 @@ contract TailHandler is TailTyped {
             accts.push(a[i]);
             acctNames.push(n[i]);
         }
+        // T1.2: the probe records the proxies' balances when the relayer's calls end
+        address[] memory proxies = new address[](2);
+        proxies[0] = address(proxy);
+        proxies[1] = address(proxy2);
+        probe.watch(proxies, ledgerTokens);
         address[4] memory owners = [eoa, address(wallet), address(router), address(proxy)];
         for (uint256 i; i < owners.length; ++i) {
             allowOwners.push(owners[i]);
@@ -591,7 +630,10 @@ contract TailHandler is TailTyped {
             _reach(string.concat("fill succeeded, relayer ", _relayerName(f.relayerIdx)));
             _reachFill(f, made, succeeded);
         }
-        if (s.refused && f.count == 1 && _isInvalidTail(s) && mutation == M_NONE) {
+        if (
+            s.refused && f.count == 1 && f.refundTo != address(router) && f.refundTo != address(proxy)
+                && _isInvalidTail(s) && mutation == M_NONE
+        ) {
             _reach(
                 string.concat("refused with InvalidTail, recipient ", _acctName(f.tail.recipient), " with an orderId")
             );
@@ -1110,7 +1152,7 @@ contract TailHandler is TailTyped {
         _reach(string.concat("attack ", names[sub], s.ok ? ", succeeded" : ", reverted"));
     }
 
-    // ================================================================ griefers and users
+    // ================================================================ outsiders and users
 
     /// @dev Action.mutation % 5: 0 token dust to the router, 1 native dust to the router, 2 a deposit under the id
     /// of an order, 3 the user cancels an order, 4 the thief takes the router's residue
@@ -1120,36 +1162,36 @@ contract TailHandler is TailTyped {
         Sub memory s;
         address token = ledgerTokens[a.tokenIn % ledgerTokens.length];
         uint256 x = _amountFor(token, a.amount);
-        address caller = griefer;
+        address caller = outsider;
         address target;
         bytes memory data;
         uint256 value;
         if (sub == 0) {
-            _fund(token, griefer, x);
+            _fund(token, outsider, x);
             target = token;
             data = abi.encodeCall(IERC20.transfer, (address(router), x));
-            s.name = string.concat("the griefer sends ", vm.toString(x), " ", tokenNames[token], " to the router");
+            s.name = string.concat("the outsider sends ", vm.toString(x), " ", tokenNames[token], " to the router");
         } else if (sub == 1) {
             value = 1 + uint256(a.aux) % 1e15;
-            vm.deal(griefer, value);
+            vm.deal(outsider, value);
             target = address(router);
-            s.name = string.concat("the griefer sends ", vm.toString(value), " wei to the router");
+            s.name = string.concat("the outsider sends ", vm.toString(value), " wei to the router");
         } else if (sub == 2) {
             Order memory o = orders[uint256(a.aux) % orders.length];
             bytes32 id = o.tail.orderId == bytes32(0) ? ID_A : o.tail.orderId;
             if (a.amount % 2 == 0) {
                 value = 1 + uint256(a.aux) % 1e15;
-                vm.deal(griefer, value);
+                vm.deal(outsider, value);
                 target = DEPOSITORY;
                 data = abi.encodeWithSignature("depositNative(address,bytes32)", _user(o.userIdx), id);
             } else {
-                _fund(token, griefer, x);
-                vm.prank(griefer);
+                _fund(token, outsider, x);
+                vm.prank(outsider);
                 SafeTransferLib.safeApprove(token, DEPOSITORY, x);
                 target = DEPOSITORY;
                 data = abi.encodeWithSignature("depositErc20(address,address,bytes32)", _user(o.userIdx), token, id);
             }
-            s.name = "the griefer deposits under an order's id";
+            s.name = "the outsider deposits under an order's id";
         } else if (sub == 3) {
             uint256 index = uint256(a.aux) % orders.length;
             Order memory o = orders[index];
@@ -1181,9 +1223,9 @@ contract TailHandler is TailTyped {
         _callWithValue(s, caller, target, data, value);
         if (sub == 4 && s.ok && _thiefHoldings() > thiefBefore) _reach("the thief took residue from the router");
         string[5] memory names = [
-            "griefer dust, token",
-            "griefer dust, native",
-            "griefer deposit under an order id",
+            "outsider dust, token",
+            "outsider dust, native",
+            "outsider deposit under an order id",
             "user cancels",
             "thief sweeps"
         ];
@@ -1208,10 +1250,10 @@ contract TailHandler is TailTyped {
                 (s.user, s.permit, s.calls, s.refundTo, address(0), META, s.signature)
             );
         _topUp(s);
-        s.refused = s.tailEntry && s.tail.orderId != bytes32(0) && s.tail.recipient != DEPOSITORY
+        s.refused = s.tailEntry && s.tail.orderId != bytes32(0)
             && !RelayApprovalProxyBase(payable(s.spender)).isDepository(s.tail.recipient);
         Snap memory before = _snap();
-        uint256 probeRuns = probe.runs();
+        s.probeRuns = probe.runs();
         vm.recordLogs();
         vm.startStateDiffRecording();
         if (s.relayerIdx == 0) {
@@ -1228,25 +1270,30 @@ contract TailHandler is TailTyped {
         _checkT1(s, before, afterwards, acc, true);
         _checkTailRules(s, acc);
         if (s.ok && s.tailEntry) {
-            _checkT2(s, f, logs, acc, probeRuns);
+            _checkT2(s, f, logs, acc);
             _checkRefund(s, f, before, afterwards);
         }
         if (s.ok) _reachFreshFills(acc);
     }
 
     /// @dev The tail's rules on its fields. The one-token rule: a tail whose permit does not hold exactly one token
-    /// reverts with InvalidTail(). The depository rule (#83): so does a tail with an orderId to a recipient the
-    /// spender does not know as a depository. A refused tail reverts before any call reaches Permit2 or the router,
-    /// so before any solver call runs, and no tail that both rules allow reverts with InvalidTail()
+    /// reverts with InvalidTail(). The refundTo rule: so does a tail whose refundTo is the router or the spender. The
+    /// depository rule (#83): so does a tail with an orderId to a recipient the spender does not know as a depository.
+    /// A refused tail reverts before any call reaches Permit2 or the router, so before any solver call runs, and no
+    /// tail that the rules allow reverts with InvalidTail()
     function _checkTailRules(Sub memory s, Vm.AccountAccess[] memory acc) internal {
         bool invalidTail = _isInvalidTail(s);
         uint256 count = s.permit.permitted.length;
         bool wrongCount = s.tailEntry && count != 1;
+        bool badRefundTo = s.tailEntry && (s.refundTo == address(router) || s.refundTo == s.spender);
         if (wrongCount) {
             _reach(string.concat("one-token rule: a tail permit with ", vm.toString(count), " tokens was submitted"));
         }
+        if (badRefundTo) {
+            _reach(string.concat("refundTo rule: a tail with refundTo ", _acctName(s.refundTo), " was submitted"));
+        }
         if (s.refused) _reach("depository rule: a tail with an orderId to an unknown recipient was submitted");
-        if (!wrongCount && !s.refused) {
+        if (!wrongCount && !badRefundTo && !s.refused) {
             if (invalidTail) {
                 _violate(
                     "depository rule",
@@ -1256,11 +1303,13 @@ contract TailHandler is TailTyped {
             }
             return;
         }
-        // the proxy checks the permit's length first
-        string memory rule = wrongCount ? "one-token rule" : "depository rule";
+        // the proxy checks the permit's length first, then refundTo, then the recipient
+        string memory rule = wrongCount ? "one-token rule" : badRefundTo ? "refundTo rule" : "depository rule";
         string memory what = wrongCount
             ? string.concat(vm.toString(count), " permitted tokens, ", s.cls)
-            : string.concat("an orderId to ", _acctName(s.tail.recipient), ", ", s.cls);
+            : badRefundTo
+                ? string.concat("refundTo ", _acctName(s.refundTo), ", ", s.cls)
+                : string.concat("an orderId to ", _acctName(s.tail.recipient), ", ", s.cls);
         if (!invalidTail) {
             _violate(
                 rule,
@@ -1274,6 +1323,10 @@ contract TailHandler is TailTyped {
         _reach("T1.3 checked a tail refused with InvalidTail");
         if (wrongCount) {
             _reach(string.concat("one-token rule: refused with InvalidTail, ", vm.toString(count), " permitted tokens"));
+        }
+        if (badRefundTo) {
+            _reach("refundTo rule: refused with InvalidTail");
+            _reach(string.concat("refundTo rule: refused with InvalidTail, refundTo ", _acctName(s.refundTo)));
         }
         if (_called(acc, address(router))) {
             _violate(rule, what, string.concat("a call reached the router before InvalidTail(). ", s.name));
@@ -1459,33 +1512,48 @@ contract TailHandler is TailTyped {
                 _violate("T1.2", s.cls, string.concat("a Permit2 allowance of the user changed. ", s.name));
             }
         }
-        // the proxies' balances do not change
-        for (uint256 a = 3; a <= 4; ++a) {
+        // The proxies keep none of the user's funds. Their balances do not fall. In a tail fill they do not change
+        // after the relayer's calls, whose end the probe marks: what the relayer's own calls send to a proxy is above
+        // the signed minimum, and the relayer may keep it. In a permit2TransferAndMulticall fill they do not change,
+        // except that a proxy the user signed as refundTo gets the refund
+        bool probed = s.tailEntry && probe.runs() == s.probeRuns + 1;
+        for (uint256 p; p < 2; ++p) {
+            uint256 a = 3 + p; // accts[3] is the proxy, accts[4] the second proxy
             for (uint256 t; t <= nt; ++t) {
                 uint256 k = a * (nt + 1) + t;
-                if (b.bal[k] != e.bal[k]) {
-                    _violate(
-                        "T1.2",
-                        string.concat(
-                            "the proxy's balance changed, refundTo ",
-                            _acctName(s.refundTo),
-                            s.extras & X_DONATE_PROXY != 0 ? ", the relayer sends tail.token to the proxy" : "",
-                            ", ",
-                            s.cls
-                        ),
-                        string.concat(
-                            acctNames[a],
-                            "'s ",
-                            _ledgerTokenName(t),
-                            " went from ",
-                            vm.toString(b.bal[k]),
-                            " to ",
-                            vm.toString(e.bal[k]),
-                            " in a successful fill. ",
-                            s.name
-                        )
-                    );
+                string memory from;
+                if (e.bal[k] < b.bal[k]) {
+                    from = vm.toString(b.bal[k]);
+                } else if (s.tailEntry) {
+                    // without exactly one run of the probe, T2 reports a harness error
+                    if (!probed) continue;
+                    uint256 afterRelayer = probe.watchedBalance(p * (nt + 1) + t);
+                    if (afterRelayer > b.bal[k]) _reach("T1.2 accepted: the relayer's calls sent value to the proxy");
+                    if (e.bal[k] == afterRelayer) continue;
+                    from = string.concat(vm.toString(afterRelayer), " at the end of the relayer's calls");
+                } else if (e.bal[k] == b.bal[k]) {
+                    continue;
+                } else if (s.refundTo == accts[a]) {
+                    _reach("T1.2 accepted: a RelayerWitness order refunded to the proxy that the user signed");
+                    continue;
+                } else {
+                    from = vm.toString(b.bal[k]);
                 }
+                _violate(
+                    "T1.2",
+                    string.concat("a proxy's balance changed, refundTo ", _acctName(s.refundTo), ", ", s.cls),
+                    string.concat(
+                        acctNames[a],
+                        "'s ",
+                        _ledgerTokenName(t),
+                        " went from ",
+                        from,
+                        " to ",
+                        vm.toString(e.bal[k]),
+                        " in a successful fill. ",
+                        s.name
+                    )
+                );
             }
         }
     }
@@ -1610,18 +1678,12 @@ contract TailHandler is TailTyped {
 
     // ---------------------------------------------------------------- T2
 
-    function _checkT2(
-        Sub memory s,
-        Fill memory f,
-        Vm.Log[] memory logs,
-        Vm.AccountAccess[] memory acc,
-        uint256 probeRuns
-    ) internal {
-        if (probe.runs() != probeRuns + 1) {
+    function _checkT2(Sub memory s, Fill memory f, Vm.Log[] memory logs, Vm.AccountAccess[] memory acc) internal {
+        if (probe.runs() != s.probeRuns + 1) {
             _violate(
                 "harness",
                 "probe",
-                string.concat("the probe ran ", vm.toString(probe.runs() - probeRuns), " times. ", s.name)
+                string.concat("the probe ran ", vm.toString(probe.runs() - s.probeRuns), " times. ", s.name)
             );
             return;
         }
@@ -1635,22 +1697,21 @@ contract TailHandler is TailTyped {
             "B ", vm.toString(B), ", minAmount ", vm.toString(tail.minAmount), ", fill succeeded. ", s.name
         );
 
-        // The tail's logs, the last SolverCallExecuted, and what reached the recipient after the tail
+        // The tail's logs: after TailStarts, up to the router's last SolverCallExecuted, which is the tail's own
         uint256 start = type(uint256).max;
         uint256 end = type(uint256).max;
-        uint256 lastSolverCall = type(uint256).max;
         for (uint256 i; i < logs.length; ++i) {
             if (logs[i].topics.length == 0) continue;
             bytes32 topic = logs[i].topics[0];
             if (logs[i].emitter == address(probe) && topic == TAIL_STARTS) start = i;
-            if (logs[i].emitter == address(router) && topic == SOLVER_CALL_EXECUTED) {
-                lastSolverCall = i;
-                if (keccak256(logs[i].data) == keccak256(abi.encode(address(router), tailHash, uint256(0)))) end = i;
-            }
+            if (logs[i].emitter == address(router) && topic == SOLVER_CALL_EXECUTED) end = i;
         }
         // T2.4
         Result[] memory results = abi.decode(s.ret, (Result[]));
-        if (end == type(uint256).max || lastSolverCall != end) {
+        if (
+            end == type(uint256).max
+                || keccak256(logs[end].data) != keccak256(abi.encode(address(router), tailHash, uint256(0)))
+        ) {
             _violate(
                 "T2.4",
                 cls,
@@ -1675,21 +1736,23 @@ contract TailHandler is TailTyped {
             _violate("harness", "logs", string.concat("cannot find the tail's logs. ", s.name));
             return;
         }
-        uint256 depositLogs;
-        uint256 logAt;
+        // The tail's deposit log: from the recipient, for the user, of B, under the orderId. And what reached the
+        // recipient after the tail
+        bytes32 expectedTopic = tail.token == address(0) ? NATIVE_DEPOSIT : ERC20_DEPOSIT;
+        bytes32 expectedLog = keccak256(
+            tail.token == address(0)
+                ? abi.encode(s.user, B, tail.orderId)
+                : abi.encode(s.user, tail.token, B, tail.orderId)
+        );
+        uint256 exactLogs;
         uint256 refunded;
         for (uint256 i = start + 1; i < logs.length; ++i) {
             if (logs[i].topics.length == 0) continue;
             bytes32 topic = logs[i].topics[0];
             if (
-                i < end && (topic == ERC20_DEPOSIT || topic == NATIVE_DEPOSIT)
-                    && (logs[i].emitter == DEPOSITORY
-                        || logs[i].emitter == depository2
-                        || logs[i].emitter == tail.recipient)
-            ) {
-                ++depositLogs;
-                logAt = i;
-            }
+                i < end && logs[i].emitter == tail.recipient && topic == expectedTopic
+                    && keccak256(logs[i].data) == expectedLog
+            ) ++exactLogs;
             if (i > end && logs[i].emitter == address(router) && topic == FUNDS_MOVEMENT) {
                 (, address to, address currency, uint256 amount,) =
                     abi.decode(logs[i].data, (address, address, address, uint256, bytes));
@@ -1697,14 +1760,13 @@ contract TailHandler is TailTyped {
             }
         }
 
-        // The tail's frame in the state diff: the calls with value the router makes in it, and its deposit calls
-        (uint256 valueCalls, address valueTo, uint256 value, uint256 depositCalls, bool found) =
-            _tailFrame(acc, tailHash, tail.recipient);
-        if (!found) {
+        // The tail's frame in the state diff
+        TailFrame memory frame = _tailFrame(acc, s.spender, tail.recipient);
+        if (!frame.found) {
             _violate("harness", "state diff", string.concat("cannot find the tail's frame. ", s.name));
             return;
         }
-        if (depositCalls != _countLooksLikeDepositoryLogs(logs, start, end, tail.recipient)) {
+        if (frame.depositCalls != _countLooksLikeDepositoryLogs(logs, start, end, tail.recipient)) {
             _violate(
                 "harness", "deposit logs", string.concat("deposit logs and successful deposit calls disagree. ", s.name)
             );
@@ -1720,17 +1782,17 @@ contract TailHandler is TailTyped {
                 _violate("T2.1", cls, string.concat("recipient +", vm.toString(delivered), ", ", numbers));
             }
         } else {
-            if (valueCalls != 1 || valueTo != tail.recipient || value != B) {
+            if (frame.valueCalls != 1 || frame.valueTo != tail.recipient || frame.value != B) {
                 _violate(
                     "T2.1",
                     cls,
                     string.concat(
                         "the router made ",
-                        vm.toString(valueCalls),
+                        vm.toString(frame.valueCalls),
                         " calls with value in the tail, the last ",
-                        vm.toString(value),
+                        vm.toString(frame.value),
                         " wei to ",
-                        _acctName(valueTo),
+                        _acctName(frame.valueTo),
                         ". ",
                         numbers
                     )
@@ -1744,45 +1806,44 @@ contract TailHandler is TailTyped {
             // T2.2
             _reach("T2.2 checked a fill with an orderId");
             if (tail.recipient.code.length == 0) {
+                _violate("T2.2", cls, string.concat("the recipient has no code. ", numbers));
+            }
+            bytes memory expectedCall = tail.token == address(0)
+                ? abi.encodeWithSignature("depositNative(address,bytes32)", s.user, tail.orderId)
+                : abi.encodeWithSignature("depositErc20(address,address,bytes32)", s.user, tail.token, tail.orderId);
+            if (
+                frame.deposits != 1 || frame.depositTo != tail.recipient
+                    || frame.depositValue != (tail.token == address(0) ? B : 0)
+                    || keccak256(frame.depositData) != keccak256(expectedCall)
+            ) {
                 _violate(
                     "T2.2",
                     cls,
                     string.concat(
-                        "the recipient has no code, ", vm.toString(depositLogs), " depository logs. ", numbers
+                        "the tail made ",
+                        vm.toString(frame.deposits),
+                        " depository calls, the last to ",
+                        _acctName(frame.depositTo),
+                        " with ",
+                        vm.toString(frame.depositValue),
+                        " wei",
+                        keccak256(frame.depositData) == keccak256(expectedCall) ? "" : " and other calldata",
+                        ". ",
+                        numbers
                     )
                 );
             }
-            if (depositLogs != 1) {
+            if (exactLogs != 1) {
                 _violate(
                     "T2.2",
                     cls,
-                    string.concat("the tail made ", vm.toString(depositLogs), " depository logs. ", numbers)
+                    string.concat(
+                        "the recipient logged ",
+                        vm.toString(exactLogs),
+                        " deposits of B for the user under the orderId in the tail. ",
+                        numbers
+                    )
                 );
-            } else {
-                bytes memory expected = tail.token == address(0)
-                    ? abi.encode(s.user, B, tail.orderId)
-                    : abi.encode(s.user, tail.token, B, tail.orderId);
-                bytes32 topic = tail.token == address(0) ? NATIVE_DEPOSIT : ERC20_DEPOSIT;
-                Vm.Log memory log = logs[logAt];
-                if (
-                    log.emitter != tail.recipient || log.topics[0] != topic
-                        || keccak256(log.data) != keccak256(expected)
-                ) {
-                    _violate(
-                        "T2.2",
-                        cls,
-                        string.concat(
-                            "the depository log from ",
-                            _acctName(log.emitter),
-                            " says ",
-                            _logAmount(log),
-                            " for B ",
-                            vm.toString(B),
-                            ". ",
-                            numbers
-                        )
-                    );
-                }
             }
             if (delivered != B) {
                 _violate(
@@ -1794,55 +1855,85 @@ contract TailHandler is TailTyped {
         } else {
             // T2.3
             _reach("T2.3 checked a fill without an orderId");
-            if (depositLogs != 0) {
+            if (frame.deposits != 0) {
                 _violate(
                     "T2.3",
                     cls,
-                    string.concat("the tail made ", vm.toString(depositLogs), " depository logs. ", numbers)
+                    string.concat(
+                        "the tail made ",
+                        vm.toString(frame.deposits),
+                        " depository calls, the last to ",
+                        _acctName(frame.depositTo),
+                        ". ",
+                        numbers
+                    )
                 );
             }
         }
     }
 
-    function _tailFrame(Vm.AccountAccess[] memory acc, bytes32 tailHash, address recipient)
+    /// @dev The tail's frame in the state diff: the router's last call to itself directly inside the spender's call
+    /// to the router's multicall. It is found by its place, not by its calldata, so a tail whose calldata differs
+    /// from the signed fields is still checked. In the frame: the calls with value that the router makes; the tail's
+    /// own depository calls, those with a deposit selector that the router makes directly in the frame; and the
+    /// successful deposit calls into Relay's depository, the allowed depository and the half-pulling recipient, which
+    /// the harness matches against their deposit logs
+    function _tailFrame(Vm.AccountAccess[] memory acc, address spender, address recipient)
         internal
         view
-        returns (uint256 valueCalls, address valueTo, uint256 value, uint256 depositCalls, bool found)
+        returns (TailFrame memory frame)
     {
-        uint256 at;
-        for (uint256 i; i < acc.length; ++i) {
+        uint256 at = type(uint256).max;
+        for (uint256 i; i < acc.length && at == type(uint256).max; ++i) {
             Vm.AccountAccess memory x = acc[i];
             if (
-                x.kind == VmSafe.AccountAccessKind.Call && !x.reverted && x.accessor == address(router)
-                    && x.account == address(router) && keccak256(x.data) == tailHash
+                x.kind == VmSafe.AccountAccessKind.Call && !x.reverted && x.accessor == spender
+                    && x.account == address(router) && x.data.length >= 4
+                    && bytes4(x.data) == RelayRouterBase.multicall.selector
+            ) at = i;
+        }
+        if (at == type(uint256).max) return frame;
+        uint64 depth = acc[at].depth;
+        for (uint256 i = at + 1; i < acc.length && acc[i].depth > depth; ++i) {
+            Vm.AccountAccess memory x = acc[i];
+            if (
+                x.depth == depth + 1 && x.kind == VmSafe.AccountAccessKind.Call && x.accessor == address(router)
+                    && x.account == address(router)
             ) {
                 at = i;
-                found = true;
+                frame.found = true;
             }
         }
-        if (!found) return (0, address(0), 0, 0, false);
-        uint64 depth = acc[at].depth;
+        if (!frame.found) return frame;
+        depth = acc[at].depth;
         for (uint256 i = at + 1; i < acc.length && acc[i].depth > depth; ++i) {
             Vm.AccountAccess memory x = acc[i];
             if (x.kind != VmSafe.AccountAccessKind.Call || x.reverted) continue;
             if (x.accessor == address(router) && x.value != 0) {
-                ++valueCalls;
-                valueTo = x.account;
-                value = x.value;
+                ++frame.valueCalls;
+                frame.valueTo = x.account;
+                frame.value = x.value;
+            }
+            if (!_isDepositCall(x.data)) continue;
+            if (x.depth == depth + 1 && x.accessor == address(router)) {
+                ++frame.deposits;
+                frame.depositTo = x.account;
+                frame.depositData = x.data;
+                frame.depositValue = x.value;
             }
             if (
-                (x.account == DEPOSITORY
-                        || x.account == depository2
-                        || (x.account == recipient && recipient == address(halfPull))) && x.data.length >= 4
-            ) {
-                bytes4 selector = bytes4(x.data);
-                if (
-                    selector == bytes4(keccak256("depositNative(address,bytes32)"))
-                        || selector == bytes4(keccak256("depositErc20(address,address,bytes32)"))
-                        || selector == bytes4(keccak256("depositErc20(address,address,uint256,bytes32)"))
-                ) ++depositCalls;
-            }
+                x.account == DEPOSITORY || x.account == depository2
+                    || (x.account == recipient && recipient == address(halfPull))
+            ) ++frame.depositCalls;
         }
+    }
+
+    function _isDepositCall(bytes memory data) internal pure returns (bool) {
+        if (data.length < 4) return false;
+        bytes4 selector = bytes4(data);
+        return selector == bytes4(keccak256("depositNative(address,bytes32)"))
+            || selector == bytes4(keccak256("depositErc20(address,address,bytes32)"))
+            || selector == bytes4(keccak256("depositErc20(address,address,uint256,bytes32)"));
     }
 
     /// @dev The deposit logs of the tail's window from contracts that log every deposit call: Relay's depository, the
@@ -1863,15 +1954,6 @@ contract TailHandler is TailTyped {
         }
     }
 
-    function _logAmount(Vm.Log memory log) internal pure returns (string memory) {
-        if (log.topics[0] == ERC20_DEPOSIT) {
-            (,, uint256 amount,) = abi.decode(log.data, (address, address, uint256, bytes32));
-            return vm.toString(amount);
-        }
-        (, uint256 nativeAmount,) = abi.decode(log.data, (address, uint256, bytes32));
-        return vm.toString(nativeAmount);
-    }
-
     function _t2Class(Sub memory s, Fill memory f) internal view returns (string memory) {
         bool thirdPartyLog =
             f.attempts & A_DEPOSIT_LOG != 0 && (s.tail.token == _hookToken() || s.tail.recipient == address(callout));
@@ -1880,7 +1962,7 @@ contract TailHandler is TailTyped {
             " to ",
             _acctName(s.tail.recipient),
             s.tail.orderId == bytes32(0) ? " without an orderId" : " with an orderId",
-            thirdPartyLog ? ", a hook or the recipient calls depositNative during the fill" : ""
+            thirdPartyLog ? ", with another deposit during the fill" : ""
         );
     }
 
