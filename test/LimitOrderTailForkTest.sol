@@ -76,6 +76,7 @@ contract LimitOrderTailForkTest is Test {
         vm.createSelectFork(vm.rpcUrl("base"));
         router = new RelayRouter();
         proxy = new RelayApprovalProxy(address(this), address(router), address(PERMIT2));
+        proxy.setDepository(DEPOSITORY, true);
         (user, userKey) = makeAddrAndKey("limit-order-tail-user");
         assertEq(user.code.length, 0);
         deal(WETH, user, 1 ether);
@@ -227,8 +228,19 @@ contract LimitOrderTailForkTest is Test {
     }
 
     function test_anOrderIdDepositsOnlyIntoAKnownDepository() public {
-        assertEq(proxy.DEPOSITORY(), DEPOSITORY);
+        RelayApprovalProxy fresh = new RelayApprovalProxy(address(this), address(router), address(PERMIT2));
+        assertFalse(fresh.isDepository(DEPOSITORY));
         ISignatureTransfer.PermitBatchTransferFrom memory permit = _permit(WETH, 1 ether);
+
+        // Without the owner's allowance, not even the chain's depository takes a tail with an order id.
+        proxy.setDepository(DEPOSITORY, false);
+        bytes memory toDepository = _sign(permit, _sell(1));
+        vm.prank(MULTICALLER);
+        vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+        proxy.permit2TransferAndMulticallWithTail(user, permit, _swapCalls(1 ether), _sell(1), user, "", toDepository);
+        assertEq(IERC20(WETH).balanceOf(user), 1 ether);
+        assertFalse(_nonceUsed());
+        proxy.setDepository(DEPOSITORY, true);
 
         // Another contract with the depository's code, as on a chain where it has another address.
         address moved = makeAddr("moved-depository");
