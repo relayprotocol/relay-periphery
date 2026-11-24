@@ -418,7 +418,7 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
     ///         to `tail.recipient`, deposited for `user` under `tail.orderId` unless that is zero, and it reverts the
     ///         whole call below `tail.minAmount`. The permit must hold exactly one token. With an order id, the
     ///         recipient must be a depository that the owner allowed. Leftover permitted tokens and native value
-    ///         go to refundTo.
+    ///         go to refundTo, which cannot be the router or this proxy.
     /// @dev    The witness binds msg.sender as the relayer, `refundTo` and the tail, but not the relayer's calls.
     /// @param user The address of the user
     /// @param permit The permit details
@@ -440,6 +440,8 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
         if (
             permit.permitted.length != 1 ||
             refundTo == address(0) ||
+            refundTo == ROUTER ||
+            refundTo == address(this) ||
             tail.minAmount == 0 ||
             tail.recipient == address(0) ||
             tail.recipient == address(this) ||

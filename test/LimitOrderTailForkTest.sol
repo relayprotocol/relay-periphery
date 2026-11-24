@@ -224,6 +224,12 @@ contract LimitOrderTailForkTest is Test {
         vm.prank(MULTICALLER);
         vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
         proxy.permit2TransferAndMulticallWithTail(user, permit, new Call3Value[](0), _sell(1), address(0), "", "");
+        vm.prank(MULTICALLER);
+        vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+        proxy.permit2TransferAndMulticallWithTail(user, permit, new Call3Value[](0), _sell(1), address(router), "", "");
+        vm.prank(MULTICALLER);
+        vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+        proxy.permit2TransferAndMulticallWithTail(user, permit, new Call3Value[](0), _sell(1), address(proxy), "", "");
         assertEq(IERC20(WETH).balanceOf(user), 1 ether);
     }
 
