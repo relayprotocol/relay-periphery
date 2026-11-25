@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Prepares an Amp orb to build and test this repository: Foundry, and the git submodules in lib.
+
+# The Foundry release that the router 4.0 pull requests were verified with.
+FOUNDRY_VERSION="v1.8.6"
+
+# foundryup installs below XDG_CONFIG_HOME when that is set, so name the directory. It also
+# expects its bin directory to come first on the PATH.
+export FOUNDRY_DIR="$HOME/.foundry"
+export PATH="$FOUNDRY_DIR/bin:$PATH"
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+step() {
+    local label="$1" start=$SECONDS
+    shift
+    echo "==> $label"
+    "$@"
+    echo "==> $label: $((SECONDS - start))s"
+}
+
+install_foundry() {
+    local installed
+    installed="$("$FOUNDRY_DIR/bin/forge" --version 2>/dev/null || true)"
+    if [[ "${installed%%$'\n'*}" == "forge Version: ${FOUNDRY_VERSION#v}" ]]; then
+        echo "forge $FOUNDRY_VERSION is already installed"
+    else
+        if [[ ! -x "$FOUNDRY_DIR/bin/foundryup" ]]; then
+            curl -fsSL https://foundry.paradigm.xyz | bash
+        fi
+        "$FOUNDRY_DIR/bin/foundryup" --install "$FOUNDRY_VERSION"
+    fi
+
+    # The installer does not change the PATH of later shells. /usr/local/bin is on the PATH of
+    # every shell of an orb.
+    local tool
+    for tool in forge cast anvil chisel; do
+        ln -sf "$FOUNDRY_DIR/bin/$tool" "/usr/local/bin/$tool"
+    done
+    forge --version
+}
+
+install_submodules() {
+    git submodule update --init --recursive --depth 1 --jobs 4
+}
+
+step "Foundry $FOUNDRY_VERSION" install_foundry
+step "Submodules" install_submodules

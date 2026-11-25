@@ -23,3 +23,6 @@ docs/
 # Dependencies
 lib/
 node_modules/
+
+# Amp orbs
+.amp/portals/*
