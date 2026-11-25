@@ -1815,7 +1815,7 @@ contract RouterAndApprovalTest is BaseTest, EIP712 {
             abi.encode(
                 _DOMAIN_TYPEHASH,
                 keccak256(bytes("RelayApprovalProxy")),
-                keccak256(bytes("3.1")),
+                keccak256(bytes("4.0")),
                 block.chainid,
                 address(approvalProxy)
             )
