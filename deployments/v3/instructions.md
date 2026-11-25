@@ -16,14 +16,6 @@ Router 4.0 runs a route race as a command of `multicall`: `raceSingle`, `race` a
 3.2 does, with one difference: a nested multicall may name an NFT recipient of its own, which
 holds for its own calls.
 
-The routers are written and tested in the route-racer repository, in `src/v4`. The files
-`src/RelayRouter.sol`, `src/RelayRouter_NonTstore.sol`, `src/RelayRouterBase.sol`,
-`src/RouteRaceEngine.sol` and `src/interfaces/IRouteRace.sol` follow that source. Do not
-change them here: change them there and copy again with its
-`bash-utils/copy-router-to-periphery.sh`. Deploy only from a commit on which that script
-passes with `--check`. It compares the five files, and the bytecode of both routers and of
-the proxy with the bytecode that the suites there test.
-
 What has to hold before any 4.0 router takes fills:
 
 - The oracle trusts `SolverCallExecuted` and `SolverNativeTransfer` only from the fill
