@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 
-import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
+import {RelayApprovalProxy_NonTstore} from "../src/RelayApprovalProxy_NonTstore.sol";
 import {
     RelayRouter_NonTstore
 } from "../src/RelayRouter_NonTstore.sol";
@@ -28,7 +28,7 @@ contract RouterAndApprovalProxy_NonTstore_Deployer is Script {
         RelayRouter_NonTstore router = RelayRouter_NonTstore(
             payable(deployRouter())
         );
-        RelayApprovalProxy approvalProxy = RelayApprovalProxy(
+        RelayApprovalProxy_NonTstore approvalProxy = RelayApprovalProxy_NonTstore(
             payable(deployApprovalProxy(owner, address(router)))
         );
 
@@ -108,7 +108,7 @@ contract RouterAndApprovalProxy_NonTstore_Deployer is Script {
                             SALT,
                             keccak256(
                                 abi.encodePacked(
-                                    type(RelayApprovalProxy).creationCode,
+                                    type(RelayApprovalProxy_NonTstore).creationCode,
                                     abi.encode(owner, router, permit2)
                                 )
                             )
@@ -119,18 +119,18 @@ contract RouterAndApprovalProxy_NonTstore_Deployer is Script {
         );
 
         console2.log(
-            "Predicted address for RelayApprovalProxy",
+            "Predicted address for RelayApprovalProxy_NonTstore",
             predictedAddress
         );
 
         // Verify if the contract has already been deployed
         if (_hasBeenDeployed(predictedAddress)) {
-            console2.log("RelayApprovalProxy was already deployed");
+            console2.log("RelayApprovalProxy_NonTstore was already deployed");
             return predictedAddress;
         }
 
         // Deploy
-        RelayApprovalProxy approvalProxy = new RelayApprovalProxy{
+        RelayApprovalProxy_NonTstore approvalProxy = new RelayApprovalProxy_NonTstore{
             salt: SALT
         }(owner, router, permit2);
 
@@ -142,7 +142,7 @@ contract RouterAndApprovalProxy_NonTstore_Deployer is Script {
             );
         }
 
-        console2.log("RelayApprovalProxy deployed");
+        console2.log("RelayApprovalProxy_NonTstore deployed");
 
         return address(approvalProxy);
     }
