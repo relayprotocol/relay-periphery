@@ -224,7 +224,32 @@ contract LimitOrderTailForkTest is Test {
         vm.prank(MULTICALLER);
         vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
         proxy.permit2TransferAndMulticallWithTail(user, permit, new Call3Value[](0), _sell(1), address(0), "", "");
+        vm.prank(MULTICALLER);
+        vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+        proxy.permit2TransferAndMulticallWithTail(user, permit, new Call3Value[](0), _sell(1), address(router), "", "");
+        vm.prank(MULTICALLER);
+        vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+        proxy.permit2TransferAndMulticallWithTail(user, permit, new Call3Value[](0), _sell(1), address(proxy), "", "");
         assertEq(IERC20(WETH).balanceOf(user), 1 ether);
+    }
+
+    function test_aTailPermitMustHoldExactlyOneToken() public {
+        ISignatureTransfer.PermitBatchTransferFrom memory permit = _permit(WETH, 1 ether);
+        ISignatureTransfer.TokenPermissions[] memory two = new ISignatureTransfer.TokenPermissions[](2);
+        two[0] = permit.permitted[0];
+        two[1] = ISignatureTransfer.TokenPermissions(USDC, 100e6);
+        ISignatureTransfer.TokenPermissions[][2] memory permitted =
+            [new ISignatureTransfer.TokenPermissions[](0), two];
+        RelayApprovalProxyBase.SweepWithMinimum memory tail = _sell(1);
+        for (uint256 i; i < permitted.length; ++i) {
+            permit.permitted = permitted[i];
+            bytes memory signature = _sign(permit, tail);
+            vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+            _submit(permit, tail, _swapCalls(1 ether), signature);
+        }
+        assertEq(IERC20(WETH).balanceOf(user), 1 ether);
+        assertEq(IERC20(USDC).balanceOf(user), 100e6);
+        assertFalse(_nonceUsed());
     }
 
     function test_anOrderIdDepositsOnlyIntoAKnownDepository() public {
