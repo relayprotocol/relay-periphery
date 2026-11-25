@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ISignatureTransfer} from "permit2-relay/src/interfaces/ISignatureTransfer.sol";
 import {SignatureVerification} from "permit2-relay/src/libraries/SignatureVerification.sol";
 import {InvalidNonce} from "permit2-relay/src/PermitErrors.sol";
+import {Ownable} from "solady/src/auth/Ownable.sol";
 
 import {RelayRouter} from "../src/RelayRouter.sol";
 import {RelayApprovalProxy} from "../src/RelayApprovalProxy.sol";
@@ -75,6 +76,7 @@ contract LimitOrderTailForkTest is Test {
         vm.createSelectFork(vm.rpcUrl("base"));
         router = new RelayRouter();
         proxy = new RelayApprovalProxy(address(this), address(router), address(PERMIT2));
+        proxy.setDepository(DEPOSITORY, true);
         (user, userKey) = makeAddrAndKey("limit-order-tail-user");
         assertEq(user.code.length, 0);
         deal(WETH, user, 1 ether);
@@ -222,6 +224,81 @@ contract LimitOrderTailForkTest is Test {
         vm.prank(MULTICALLER);
         vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
         proxy.permit2TransferAndMulticallWithTail(user, permit, new Call3Value[](0), _sell(1), address(0), "", "");
+        assertEq(IERC20(WETH).balanceOf(user), 1 ether);
+    }
+
+    function test_anOrderIdDepositsOnlyIntoAKnownDepository() public {
+        RelayApprovalProxy fresh = new RelayApprovalProxy(address(this), address(router), address(PERMIT2));
+        assertFalse(fresh.isDepository(DEPOSITORY));
+        ISignatureTransfer.PermitBatchTransferFrom memory permit = _permit(WETH, 1 ether);
+
+        // Without the owner's allowance, not even the chain's depository takes a tail with an order id.
+        proxy.setDepository(DEPOSITORY, false);
+        bytes memory toDepository = _sign(permit, _sell(1));
+        vm.prank(MULTICALLER);
+        vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+        proxy.permit2TransferAndMulticallWithTail(user, permit, _swapCalls(1 ether), _sell(1), user, "", toDepository);
+        assertEq(IERC20(WETH).balanceOf(user), 1 ether);
+        assertFalse(_nonceUsed());
+        proxy.setDepository(DEPOSITORY, true);
+
+        // Another contract with the depository's code, as on a chain where it has another address.
+        address moved = makeAddr("moved-depository");
+        vm.etch(moved, DEPOSITORY.code);
+        RelayApprovalProxyBase.SweepWithMinimum memory tail =
+            RelayApprovalProxyBase.SweepWithMinimum(USDC, 1, moved, ORDER_ID);
+        bytes memory signature = _sign(permit, tail);
+
+        vm.prank(MULTICALLER);
+        vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+        proxy.permit2TransferAndMulticallWithTail(user, permit, _swapCalls(1 ether), tail, user, "", signature);
+        assertEq(IERC20(WETH).balanceOf(user), 1 ether);
+        assertFalse(_nonceUsed());
+
+        vm.prank(MULTICALLER_OWNER);
+        vm.expectRevert(Ownable.Unauthorized.selector);
+        proxy.setDepository(moved, true);
+
+        vm.expectEmit(address(proxy));
+        emit RelayApprovalProxyBase.DepositoryUpdated(moved, true);
+        proxy.setDepository(moved, true);
+        assertTrue(proxy.isDepository(moved));
+
+        vm.recordLogs();
+        _submit(permit, tail, _swapCalls(1 ether), signature);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        uint256 deposits;
+        for (uint256 i; i < logs.length; ++i) {
+            assertTrue(logs[i].emitter != DEPOSITORY);
+            if (logs[i].emitter == moved) {
+                assertEq(logs[i].topics[0], ERC20_DEPOSIT);
+                (address from, address token, uint256 amount, bytes32 id) =
+                    abi.decode(logs[i].data, (address, address, uint256, bytes32));
+                assertEq(from, user);
+                assertEq(token, USDC);
+                assertEq(amount, IERC20(USDC).balanceOf(moved));
+                assertEq(id, ORDER_ID);
+                ++deposits;
+            }
+        }
+        assertEq(deposits, 1);
+        assertTrue(_nonceUsed());
+
+        // Removed again, it takes no new order.
+        proxy.setDepository(moved, false);
+        deal(WETH, user, 1 ether);
+        permit.nonce = NONCE + 1;
+        signature = _sign(permit, tail);
+        vm.prank(MULTICALLER);
+        vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+        proxy.permit2TransferAndMulticallWithTail(user, permit, _swapCalls(1 ether), tail, user, "", signature);
+
+        // An order id with a recipient that is no depository at all.
+        tail.recipient = makeAddr("not-a-depository");
+        signature = _sign(permit, tail);
+        vm.prank(MULTICALLER);
+        vm.expectRevert(RelayApprovalProxyBase.InvalidTail.selector);
+        proxy.permit2TransferAndMulticallWithTail(user, permit, _swapCalls(1 ether), tail, user, "", signature);
         assertEq(IERC20(WETH).balanceOf(user), 1 ether);
     }
 

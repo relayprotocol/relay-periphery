@@ -53,7 +53,8 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
     /// @notice Revert if a function of this contract is called while another one runs
     error Reentrancy();
 
-    /// @notice Revert if `refundTo` or a field of the tail is invalid
+    /// @notice Revert if `refundTo` or a field of the tail is invalid, or a tail with an order id does not
+    ///         deposit into a known depository
     error InvalidTail();
 
     /// @notice The last call of a limit-order fill, as the user signs it: at least `minAmount` of `token`
@@ -79,6 +80,13 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
 
     /// @notice The Permit2 contract
     IPermit2 private immutable PERMIT2;
+
+    /// @notice The depositories that a tail with an order id may deposit into. Set by the owner on each chain,
+    ///         in storage, so that the proxy's code and CREATE2 address stay the same on every chain
+    mapping(address => bool) public isDepository;
+
+    /// @notice Emitted when the owner allows or removes a depository
+    event DepositoryUpdated(address depository, bool allowed);
 
     bytes32 public constant _CALL3VALUE_TYPEHASH =
         keccak256(
@@ -159,6 +167,19 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
         ROUTER = _router;
         PERMIT2 = IPermit2(_permit2);
         _store(_GUARD_SLOT, _NOT_ENTERED);
+    }
+
+    /// @notice Allow or remove a depository that a tail with an order id may deposit into
+    /// @dev    The user signs the recipient of a tail, so allowing an address cannot redirect a signed order.
+    ///         Removing an address stops the fills of the orders signed for it
+    /// @param depository The depository
+    /// @param allowed Whether a tail with an order id may deposit into it
+    function setDepository(
+        address depository,
+        bool allowed
+    ) external onlyOwner nonReentrant {
+        isDepository[depository] = allowed;
+        emit DepositoryUpdated(depository, allowed);
     }
 
     /// @notice Withdraw function in case funds get stuck in contract
@@ -395,7 +416,8 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
     /// @notice Use Permit2 to transfer tokens to RelayRouter, run the relayer's calls, and then run the tail that the
     ///         user signed as the last call. The tail cannot fail: it moves the router's full balance of `tail.token`
     ///         to `tail.recipient`, deposited for `user` under `tail.orderId` unless that is zero, and it reverts the
-    ///         whole call below `tail.minAmount`. Leftover permitted tokens and native value go to refundTo.
+    ///         whole call below `tail.minAmount`. With an order id, the recipient must be a depository that
+    ///         the owner allowed. Leftover permitted tokens and native value go to refundTo.
     /// @dev    The witness binds msg.sender as the relayer, `refundTo` and the tail, but not the relayer's calls.
     /// @param user The address of the user
     /// @param permit The permit details
@@ -419,7 +441,8 @@ abstract contract RelayApprovalProxyBase is Ownable, EIP712 {
             tail.minAmount == 0 ||
             tail.recipient == address(0) ||
             tail.recipient == address(this) ||
-            tail.recipient == ROUTER
+            tail.recipient == ROUTER ||
+            (tail.orderId != bytes32(0) && !isDepository[tail.recipient])
         ) {
             revert InvalidTail();
         }
